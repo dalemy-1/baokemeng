@@ -2,8 +2,10 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <title>账号库 · 活动 · 中奖统计系统</title>
+  <title>账号库 · 活动 · 中奖统计系统（云端版）</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Supabase UMD 版本 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -280,9 +282,64 @@
   </style>
 </head>
 <body>
+  <!-- 密码锁遮罩 -->
+  <div id="password-overlay" style="
+    position: fixed;
+    inset: 0;
+    background: #111827;
+    color: #f9fafb;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+  ">
+    <div style="
+      background:#1f2937;
+      padding:20px 24px;
+      border-radius:12px;
+      width:90%;
+      max-width:360px;
+      box-shadow:0 20px 40px rgba(0,0,0,.4);
+    ">
+      <h2 style="margin:0 0 8px;font-size:18px;">宝可梦账号系统登录</h2>
+      <p style="margin:0 0 12px;font-size:12px;color:#9ca3af;">
+        请输入访问密码。浏览器会在本机记住登录状态。
+      </p>
+      <input
+        id="password-input"
+        type="password"
+        placeholder="访问密码"
+        style="
+          width:100%;
+          padding:8px 10px;
+          border-radius:6px;
+          border:1px solid #4b5563;
+          background:#111827;
+          color:#f9fafb;
+          font-size:13px;
+          margin-bottom:8px;
+        "
+      />
+      <div id="password-error" style="min-height:18px;font-size:12px;color:#f97373;margin-bottom:8px;"></div>
+      <button
+        id="password-submit"
+        style="
+          width:100%;
+          padding:8px 10px;
+          border-radius:6px;
+          border:none;
+          background:#f97316;
+          color:#111827;
+          font-size:14px;
+          cursor:pointer;
+        "
+      >进入系统</button>
+    </div>
+  </div>
+
   <header>
-    <h1>账号库 · 活动 · 中奖统计系统</h1>
-    <p>账号池 + 每期活动参与统计 + 中奖录入，全部保存在本机浏览器 localStorage。</p>
+    <h1>账号库 · 活动 · 中奖统计系统（云端版）</h1>
+    <p>账号池 + 每期活动参与统计 + 中奖录入，数据同步到 Supabase，同时保留本机缓存。</p>
   </header>
 
   <div class="container">
@@ -643,6 +700,16 @@
   </div>
 
   <script>
+    // ========= Supabase 配置（根据你提供的信息） =========
+    const SUPABASE_URL = "https://nuwqhopuszsbystlioku.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51d3Fob3B1c3pzYnlzdGxpb2t1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU0MjQ0ODIsImV4cCI6MjA4MTAwMDQ4Mn0.WzW8gnd_-CmGLRsG85ETH9PxRNT12xF6tuQiWArGo-4";
+    const DATASET_ID = "main-dataset"; // 固定一行，存整个系统数据
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // 是否成功从远程加载过数据
+    let remoteLoadedOnce = false;
+
     // ========= 基础数据结构 =========
     let accounts = [];   // {id, email, status, label, note, createdAt}
     let activities = []; // {id, name, date, status, prizeName, prizeLevel, note, participants: [accountId], createdAt}
@@ -659,8 +726,8 @@
     let activitySearchKeyword = "";
     let currentActivityDetailId = null; // 当前活动详情弹窗对应的活动ID
 
-    // ========= localStorage =========
-    function loadData() {
+    // ========= 本地 localStorage 读写 =========
+    function loadDataLocal() {
       try {
         const a = localStorage.getItem(STORAGE_KEYS.accounts);
         const act = localStorage.getItem(STORAGE_KEYS.activities);
@@ -669,23 +736,87 @@
         activities = act ? JSON.parse(act) : [];
         wins = w ? JSON.parse(w) : [];
       } catch (e) {
-        console.error("加载数据失败", e);
+        console.error("本地加载数据失败", e);
         accounts = [];
         activities = [];
         wins = [];
       }
 
-      // 旧数据兼容：没有 createdAt 时补一个固定早期时间
       const fallbackDate = "2000-01-01T00:00:00.000Z";
       accounts.forEach(a => { if (!a.createdAt) a.createdAt = fallbackDate; });
       activities.forEach(a => { if (!a.createdAt) a.createdAt = fallbackDate; });
     }
 
-    function saveData() {
+    function saveDataLocal() {
       localStorage.setItem(STORAGE_KEYS.accounts, JSON.stringify(accounts));
       localStorage.setItem(STORAGE_KEYS.activities, JSON.stringify(activities));
       localStorage.setItem(STORAGE_KEYS.wins, JSON.stringify(wins));
       refreshCounts();
+    }
+
+    // ========= 远程 Supabase 读写 =========
+    async function loadDataRemote() {
+      try {
+        const { data, error } = await supabase
+          .from("dataset")
+          .select("data")
+          .eq("id", DATASET_ID)
+          .single();
+
+        if (error) {
+          // PGRST116 表示未找到记录
+          if (error.code !== "PGRST116") {
+            console.error("远程加载数据失败", error);
+          }
+          return false;
+        }
+
+        if (data && data.data) {
+          accounts = data.data.accounts || [];
+          activities = data.data.activities || [];
+          wins = data.data.wins || [];
+          remoteLoadedOnce = true;
+
+          const fallbackDate = "2000-01-01T00:00:00.000Z";
+          accounts.forEach(a => { if (!a.createdAt) a.createdAt = fallbackDate; });
+          activities.forEach(a => { if (!a.createdAt) a.createdAt = fallbackDate; });
+
+          // 同步一份到本地
+          saveDataLocal();
+          return true;
+        }
+        return false;
+      } catch (e) {
+        console.error("远程加载异常", e);
+        return false;
+      }
+    }
+
+    async function saveDataRemote() {
+      try {
+        const payload = {
+          accounts,
+          activities,
+          wins,
+          updatedAt: new Date().toISOString(),
+        };
+        const { error } = await supabase
+          .from("dataset")
+          .upsert({ id: DATASET_ID, data: payload });
+
+        if (error) {
+          console.error("远程保存失败", error);
+        }
+      } catch (e) {
+        console.error("远程保存异常", e);
+      }
+    }
+
+    // 对外统一：保存 = 本地 + 云端
+    function saveData() {
+      saveDataLocal();
+      // 异步远程同步
+      saveDataRemote();
     }
 
     function refreshCounts() {
@@ -796,7 +927,6 @@
       const tbody = document.getElementById("accounts-tbody");
       tbody.innerHTML = "";
 
-      // 统计每个账号中奖次数和最近中奖
       const winStats = {};
       wins.forEach(w => {
         if (!winStats[w.accountId]) {
@@ -814,7 +944,6 @@
       const keyword = (accountSearchKeyword || "").toLowerCase();
       const statusFilter = accountStatusFilter || "";
 
-      // 带 index 排序：按创建时间倒序（新的在上）
       const list = accounts.map((acc, index) => ({ acc, index }));
       list.sort((a, b) => {
         const da = a.acc.createdAt || "";
@@ -893,7 +1022,6 @@
         return;
       }
 
-      // 该账号的中奖记录
       const accWins = wins
         .filter(w => w.accountId === acc.id)
         .sort((a, b) =>
@@ -902,12 +1030,10 @@
           )
         );
 
-      // 参加过的所有活动
       const participatedActivities = activities.filter(act =>
         (act.participants || []).includes(acc.id)
       );
 
-      // 按活动分组的中奖情况
       const winByActivity = new Map();
       accWins.forEach(w => {
         if (!winByActivity.has(w.activityId)) {
@@ -1182,7 +1308,6 @@
       });
     }
 
-    // 共同的批量导入逻辑
     function bulkAddEmailsFromLines(lines, defaultNote) {
       const nowIso = new Date().toISOString();
       let imported = 0;
@@ -1221,14 +1346,12 @@
       return { imported, skipped };
     }
 
-    // CSV + 文本导入
     function setupAccountImport() {
       const fileInput = document.getElementById("account-import-file");
       const importBtn = document.getElementById("account-import-btn");
       const textArea = document.getElementById("account-import-text");
       const textBtn = document.getElementById("account-import-text-btn");
 
-      // CSV 导入
       importBtn.addEventListener("click", () => {
         const file = fileInput.files && fileInput.files[0];
         if (!file) {
@@ -1267,7 +1390,6 @@
         reader.readAsText(file, "utf-8");
       });
 
-      // 文本导入
       textBtn.addEventListener("click", () => {
         const text = textArea.value.trim();
         if (!text) {
@@ -1738,7 +1860,7 @@
 
         let created = 0;
         const notFound = [];
-        const duplicated = []; // 当前活动中已存在中奖记录的账号
+        const duplicated = [];
 
         lines.forEach(line => {
           const key = line.toLowerCase();
@@ -1752,7 +1874,6 @@
             return;
           }
 
-          // 同一活动 + 同一账号 不可重复提交
           const exists = wins.some(
             w => w.activityId === activityId && w.accountId === acc.id
           );
@@ -1926,7 +2047,6 @@
       }
 
       const rows = [];
-      // 表头
       rows.push([
         "活动ID",
         "活动名称",
@@ -1957,7 +2077,6 @@
         row
           .map(field => {
             const v = field == null ? "" : String(field);
-            // 简单处理逗号和引号
             if (/[",\n]/.test(v)) {
               return '"' + v.replace(/"/g, '""') + '"';
             }
@@ -1965,7 +2084,7 @@
           })
           .join(",")
       );
-      const csvContent = "\uFEFF" + csvLines.join("\r\n"); // 加 BOM
+      const csvContent = "\uFEFF" + csvLines.join("\r\n");
 
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
@@ -2051,9 +2170,8 @@
       });
     }
 
-    // ========= 初始化 & 弹窗绑定 =========
+    // ========= 弹窗绑定 =========
     function initModal() {
-      // 账号详情弹窗
       const accModal = document.getElementById("account-detail-modal");
       const accCloseBtn = document.getElementById("account-detail-close-btn");
       accCloseBtn.addEventListener("click", () => {
@@ -2065,7 +2183,6 @@
         }
       });
 
-      // 活动详情弹窗
       const actModal = document.getElementById("activity-detail-modal");
       const actCloseBtn = document.getElementById("activity-detail-close-btn");
       const actExportBtn = document.getElementById("activity-detail-export-btn");
@@ -2087,8 +2204,58 @@
       });
     }
 
-    function init() {
-      loadData();
+    // ========= 密码锁 =========
+    const SYSTEM_PASSWORD = "568568";  // 你设定的访问密码
+
+    function setupPasswordGate(startAppCallback) {
+      const overlay = document.getElementById("password-overlay");
+      const input = document.getElementById("password-input");
+      const btn = document.getElementById("password-submit");
+      const errorEl = document.getElementById("password-error");
+
+      function unlock() {
+        overlay.style.display = "none";
+        localStorage.setItem("acc_act_pass_ok", "1");
+        if (typeof startAppCallback === "function") {
+          startAppCallback();
+        }
+      }
+
+      const ok = localStorage.getItem("acc_act_pass_ok");
+      if (ok === "1") {
+        unlock();
+        return;
+      }
+
+      function check() {
+        const v = input.value.trim();
+        if (!v) {
+          errorEl.textContent = "请输入密码。";
+          return;
+        }
+        if (v === SYSTEM_PASSWORD) {
+          errorEl.textContent = "";
+          unlock();
+        } else {
+          errorEl.textContent = "密码错误。";
+        }
+      }
+
+      btn.addEventListener("click", check);
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") check();
+      });
+
+      setTimeout(() => input.focus(), 50);
+    }
+
+    // ========= 初始化 =========
+    async function initApp() {
+      const ok = await loadDataRemote();
+      if (!ok) {
+        loadDataLocal();
+      }
+
       setupTabs();
       setupAccountForm();
       setupActivityForm();
@@ -2106,7 +2273,11 @@
       resetWinnerForm();
     }
 
-    document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", () => {
+      setupPasswordGate(() => {
+        initApp();
+      });
+    });
   </script>
 </body>
 </html>
