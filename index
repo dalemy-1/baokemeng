@@ -1,1 +1,1788 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>账号库 · 活动 · 中奖统计系统</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Microsoft Yahei",
+        sans-serif;
+      background: #f3f4f6;
+      color: #111827;
+    }
+    header {
+      background: #111827;
+      color: #f9fafb;
+      padding: 16px 24px;
+    }
+    header h1 { margin: 0; font-size: 20px; }
+    header p { margin: 4px 0 0; font-size: 13px; color: #9ca3af; }
 
+    .container {
+      max-width: 1200px;
+      margin: 16px auto 32px;
+      padding: 0 16px;
+    }
+    .card {
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 16px 18px;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+      margin-bottom: 16px;
+    }
+
+    .tab-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .tab-button {
+      border: 1px solid #e5e7eb;
+      background: #f9fafb;
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tab-button.active {
+      background: #111827;
+      color: #f9fafb;
+      border-color: #111827;
+    }
+    .tab-button span.badge {
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: #e5e7eb;
+      color: #4b5563;
+    }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    h2 { margin: 0 0 8px; font-size: 18px; }
+    .sub { font-size: 12px; color: #6b7280; margin-bottom: 12px; }
+
+    form {
+      margin-bottom: 12px;
+      border-radius: 10px;
+      background: #f9fafb;
+      padding: 10px 12px;
+      border: 1px solid #e5e7eb;
+    }
+    .form-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .current-edit {
+      font-size: 12px;
+      color: #4b5563;
+    }
+    .current-edit span {
+      font-weight: 600;
+      color: #111827;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 8px 12px;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    label { font-size: 12px; color: #4b5563; }
+
+    input[type="text"],
+    input[type="email"],
+    input[type="date"],
+    select,
+    textarea {
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid #d1d5db;
+      font-size: 13px;
+      width: 100%;
+      background: #ffffff;
+    }
+    textarea { resize: vertical; min-height: 50px; }
+
+    .form-actions {
+      margin-top: 8px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    button {
+      border-radius: 6px;
+      border: none;
+      padding: 6px 12px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .btn-primary { background: #111827; color: #f9fafb; }
+    .btn-secondary { background: #e5e7eb; color: #111827; }
+    .btn-danger { background: #dc2626; color: #f9fafb; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      font-size: 12px;
+    }
+    thead { background: #f3f4f6; }
+    th, td {
+      padding: 6px 8px;
+      border-bottom: 1px solid #e5e7eb;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { font-weight: 600; color: #4b5563; }
+    tr:last-child td { border-bottom: none; }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      font-size: 11px;
+      border-radius: 999px;
+      background: #e5e7eb;
+      color: #374151;
+    }
+    .tag-success { background: #dcfce7; color: #166534; }
+    .tag-warning { background: #fef9c3; color: #854d0e; }
+    .tag-danger  { background: #fee2e2; color: #b91c1c; }
+
+    .table-actions {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+    .table-actions button {
+      padding: 2px 6px;
+      font-size: 11px;
+    }
+
+    .badge-number { font-variant-numeric: tabular-nums; }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 6px 0;
+      border-top: 1px dashed #e5e7eb;
+      border-bottom: 1px dashed #e5e7eb;
+      margin-top: 6px;
+    }
+    .toolbar-right {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .small-input { max-width: 220px; }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .stat-card {
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+      padding: 8px 10px;
+      background: #f9fafb;
+      font-size: 12px;
+    }
+    .stat-card h3 { margin: 0 0 4px; font-size: 13px; }
+
+    .muted { color: #9ca3af; }
+
+    /* 弹窗样式 */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-backdrop.active {
+      display: flex;
+    }
+    .modal {
+      background: #ffffff;
+      border-radius: 12px;
+      max-width: 820px;
+      width: 96%;
+      max-height: 82vh;
+      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.4);
+      display: flex;
+      flex-direction: column;
+    }
+    .modal-header {
+      padding: 10px 14px;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-header h3 {
+      margin: 0;
+      font-size: 14px;
+    }
+    .modal-close-btn {
+      border: none;
+      background: transparent;
+      font-size: 16px;
+      cursor: pointer;
+      padding: 0 2px;
+      line-height: 1;
+      color: #6b7280;
+    }
+    .modal-body {
+      padding: 10px 14px 12px;
+      overflow: auto;
+      font-size: 12px;
+    }
+
+    @media (max-width: 640px) {
+      header { padding: 12px 16px; }
+      .card { padding: 12px 14px; }
+      th, td { padding: 4px 6px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>账号库 · 活动 · 中奖统计系统</h1>
+    <p>账号池 + 每期活动参与统计 + 中奖录入，全部保存在本机浏览器 localStorage。</p>
+  </header>
+
+  <div class="container">
+    <div class="card">
+      <div class="tab-buttons">
+        <button class="tab-button active" data-tab="accounts">
+          账号库
+          <span class="badge badge-number" id="accounts-count">0</span>
+        </button>
+        <button class="tab-button" data-tab="activities">
+          活动管理
+          <span class="badge badge-number" id="activities-count">0</span>
+        </button>
+        <button class="tab-button" data-tab="winners">
+          中奖录入
+          <span class="badge badge-number" id="wins-count">0</span>
+        </button>
+        <button class="tab-button" data-tab="stats">
+          统计视图
+        </button>
+        <button class="tab-button" data-tab="backup">
+          数据备份
+        </button>
+      </div>
+
+      <!-- 账号库 -->
+      <section id="tab-accounts" class="tab-content active">
+        <h2>账号库</h2>
+        <p class="sub">
+          录入所有邮箱账号信息，只记录邮箱、状态、标签、备注。支持文本搜索、状态筛选、批量操作，并查看每个账号的中奖情况。
+        </p>
+
+        <form id="account-form">
+          <div class="form-header-row">
+            <div class="current-edit" id="account-current-edit">
+              当前模式：<span>新建账号</span>
+            </div>
+            <div style="font-size:12px;color:#6b7280;">
+              小贴士：可以先从 Excel 导出一列邮箱，用 CSV UTF-8，再批量导入。
+            </div>
+          </div>
+          <input type="hidden" id="account-edit-index" value="" />
+          <div class="form-grid">
+            <div class="form-group">
+              <label>账号 ID（自动）</label>
+              <input type="text" id="account-id" readonly placeholder="保存时自动生成，如 A0001" />
+            </div>
+            <div class="form-group">
+              <label>邮箱账户</label>
+              <input type="email" id="account-email" placeholder="例如：xxx@outlook.com" required />
+            </div>
+            <div class="form-group">
+              <label>账号状态</label>
+              <select id="account-status">
+                <option value="可用">可用</option>
+                <option value="停用">停用</option>
+                <option value="封禁">封禁</option>
+                <option value="黑名单">黑名单</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>标签 / 分组</label>
+              <input type="text" id="account-label" placeholder="例如：主库 / 备用 / JP / US" />
+            </div>
+            <div class="form-group" style="grid-column:1/-1;">
+              <label>备注</label>
+              <textarea id="account-note" placeholder="这里不写详细地址，只写你需要的备注即可。"></textarea>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn-secondary" id="account-reset-btn">新建账号</button>
+            <button type="submit" class="btn-primary">保存账号</button>
+          </div>
+        </form>
+
+        <div class="toolbar">
+          <div class="muted">
+            多选账号可批量修改状态或删除；删除账号会同时删除该账号的中奖记录和参与记录。
+          </div>
+          <div class="toolbar-right">
+            <input type="text" id="account-search" class="small-input" placeholder="搜索邮箱 / 标签 / 备注" />
+            <select id="account-status-filter" class="small-input">
+              <option value="">全部状态</option>
+              <option value="可用">只看可用</option>
+              <option value="停用">只看停用</option>
+              <option value="封禁">只看封禁</option>
+              <option value="黑名单">只看黑名单</option>
+            </select>
+            <select id="batch-status-select" class="small-input">
+              <option value="">批量状态</option>
+              <option value="可用">可用</option>
+              <option value="停用">停用</option>
+              <option value="封禁">封禁</option>
+              <option value="黑名单">黑名单</option>
+            </select>
+            <button type="button" class="btn-secondary" id="batch-set-status-btn">批量修改状态</button>
+            <button type="button" class="btn-danger" id="batch-delete-btn">批量删除</button>
+            <input type="file" id="account-import-file" accept=".csv" />
+            <button type="button" class="btn-secondary" id="account-import-btn">批量导入邮箱</button>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width:32px;">
+                <input type="checkbox" id="accounts-select-all" />
+              </th>
+              <th>ID</th>
+              <th>邮箱</th>
+              <th>状态</th>
+              <th>标签</th>
+              <th>总中奖次数</th>
+              <th>最近中奖</th>
+              <th>创建日期</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="accounts-tbody"></tbody>
+        </table>
+      </section>
+
+      <!-- 活动管理 -->
+      <section id="tab-activities" class="tab-content">
+        <h2>活动管理</h2>
+        <p class="sub">
+          每期开启一个活动，可一键选择当前所有「可用」账号参与。活动结束后，在“中奖录入”中选择活动录入中奖账号，系统自动统计参与数、中奖数和中奖比例。
+        </p>
+
+        <form id="activity-form">
+          <div class="form-header-row">
+            <div class="current-edit" id="activity-current-edit">
+              当前模式：<span>新建活动</span>
+            </div>
+            <div style="font-size:12px;color:#6b7280;">
+              参与账号可以随时重新选择「全部可用账号」，不会影响已录入的中奖记录。
+            </div>
+          </div>
+          <input type="hidden" id="activity-edit-index" value="" />
+          <div class="form-grid">
+            <div class="form-group">
+              <label>活动 ID（自动）</label>
+              <input type="text" id="activity-id" readonly placeholder="保存时自动生成，如 E0001" />
+            </div>
+            <div class="form-group">
+              <label>活动名称</label>
+              <input type="text" id="activity-name" placeholder="例如：2025 春季宝可梦抽选" required />
+            </div>
+            <div class="form-group">
+              <label>活动日期</label>
+              <input type="date" id="activity-date" />
+            </div>
+            <div class="form-group">
+              <label>活动状态</label>
+              <select id="activity-status">
+                <option value="进行中">进行中</option>
+                <option value="已结束">已结束</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>统一奖项名称（选填）</label>
+              <input type="text" id="activity-prize-name" placeholder="例如：S 赏 毛绒玩偶" />
+            </div>
+            <div class="form-group">
+              <label>统一奖项等级（选填）</label>
+              <input type="text" id="activity-prize-level" placeholder="例如：S / A / B" />
+            </div>
+            <div class="form-group">
+              <label>参与账号数量</label>
+              <input type="text" id="activity-participants-count" readonly value="0" />
+            </div>
+            <div class="form-group" style="grid-column:1/-1;">
+              <label>备注</label>
+              <textarea id="activity-note" placeholder="例如：官网抽选 / 店铺现场抽签 等"></textarea>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn-secondary" id="activity-select-all-available-btn">
+              选择全部「可用」账号参与
+            </button>
+            <button type="button" class="btn-secondary" id="activity-clear-participants-btn">
+              清空参与账号
+            </button>
+            <span style="flex:1;"></span>
+            <button type="button" class="btn-secondary" id="activity-reset-btn">新建活动</button>
+            <button type="submit" class="btn-primary">保存活动</button>
+          </div>
+        </form>
+
+        <div class="toolbar">
+          <div class="muted">
+            活动删除后，该活动下所有中奖记录会一并删除。
+          </div>
+          <div class="toolbar-right">
+            <input type="text" id="activity-search" class="small-input" placeholder="搜索活动名称 / 备注" />
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>活动名称</th>
+              <th>日期</th>
+              <th>状态</th>
+              <th>参与账号数</th>
+              <th>中奖数量</th>
+              <th>中奖比例</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="activities-tbody"></tbody>
+        </table>
+      </section>
+
+      <!-- 中奖录入 -->
+      <section id="tab-winners" class="tab-content">
+        <h2>中奖录入</h2>
+        <p class="sub">
+          选择一期活动，只录入中奖账号（ID 或邮箱）。系统按活动和账号自动建立中奖记录，并更新各类统计。
+        </p>
+
+        <form id="winner-form">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>选择活动</label>
+              <select id="win-activity-id" required>
+                <option value="">请选择活动</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>活动日期（可覆盖活动默认日期）</label>
+              <input type="date" id="win-event-date" />
+            </div>
+            <div class="form-group">
+              <label>本次奖项名称（默认用活动统一奖项）</label>
+              <input type="text" id="win-prize-name" placeholder="为空则使用活动统一奖项名称" />
+            </div>
+            <div class="form-group">
+              <label>本次奖项等级（默认用活动统一等级）</label>
+              <input type="text" id="win-prize-level" placeholder="为空则使用活动统一奖项等级" />
+            </div>
+            <div class="form-group" style="grid-column:1/-1;">
+              <label>本次录入备注（选填）</label>
+              <textarea id="win-note" placeholder="例如：邮件通知时间、发货情况备注等"></textarea>
+            </div>
+            <div class="form-group" style="grid-column:1/-1;">
+              <label>中奖账号列表（每行一个 账号ID 或 邮箱）</label>
+              <textarea id="win-accounts-text" placeholder="示例：&#10;A0001&#10;A0002&#10;xxx@outlook.com&#10;yyy@gmail.com"></textarea>
+            </div>
+          </div>
+          <div class="form-actions">
+            <div id="win-activity-summary" style="font-size:12px;color:#6b7280;flex:1;text-align:left;"></div>
+            <button type="button" class="btn-secondary" id="winner-reset-btn">清空表单</button>
+            <button type="submit" class="btn-primary">批量登记中奖账号</button>
+          </div>
+        </form>
+
+        <div class="toolbar">
+          <div class="muted">
+            下表展示最近的 50 条中奖记录，方便快速回看。
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>中奖ID</th>
+              <th>账号</th>
+              <th>活动</th>
+              <th>日期</th>
+              <th>奖项</th>
+              <th>备注</th>
+            </tr>
+          </thead>
+          <tbody id="wins-tbody"></tbody>
+        </table>
+      </section>
+
+      <!-- 统计视图 -->
+      <section id="tab-stats" class="tab-content">
+        <h2>统计视图</h2>
+        <p class="sub">
+          上半部分按账号统计中奖情况，下半部分按活动统计参与数和中奖率。
+        </p>
+
+        <h3 style="font-size:14px;margin:8px 0 4px;">账号维度</h3>
+        <div class="stats-grid" id="stats-accounts"></div>
+
+        <h3 style="font-size:14px;margin:16px 0 4px;">活动维度</h3>
+        <div class="stats-grid" id="stats-activities"></div>
+      </section>
+
+      <!-- 数据备份 -->
+      <section id="tab-backup" class="tab-content">
+        <h2>数据备份</h2>
+        <p class="sub">可将账号库、活动、中奖记录导出为 JSON 文本，也可以从 JSON 恢复。</p>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label>导出数据（JSON 文本）</label>
+            <textarea id="export-text" readonly></textarea>
+          </div>
+          <div class="form-group">
+            <label>导入数据（粘贴 JSON）</label>
+            <textarea id="import-text" placeholder="在此粘贴之前导出的 JSON，再点击下方导入按钮"></textarea>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" id="export-btn">刷新导出数据</button>
+          <button type="button" class="btn-primary" id="import-btn">导入 JSON 数据</button>
+          <button type="button" class="btn-danger" id="clear-all-btn">清空所有数据（危险）</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- 账号详情弹窗 -->
+  <div id="account-detail-modal" class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="account-detail-title">账号详情</h3>
+        <button class="modal-close-btn" id="account-detail-close-btn">×</button>
+      </div>
+      <div class="modal-body" id="account-detail-body">
+        <!-- 动态填充 -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ========= 基础数据结构 =========
+    let accounts = [];   // {id, email, status, label, note, createdAt}
+    let activities = []; // {id, name, date, status, prizeName, prizeLevel, note, participants: [accountId], createdAt}
+    let wins = [];       // {id, accountId, activityId, eventName, eventDate, prizeName, prizeLevel, note, createdAt}
+
+    const STORAGE_KEYS = {
+      accounts: "acc_act_accounts",
+      activities: "acc_act_activities",
+      wins: "acc_act_wins",
+    };
+
+    let accountSearchKeyword = "";
+    let accountStatusFilter = "";
+    let activitySearchKeyword = "";
+
+    // ========= localStorage =========
+    function loadData() {
+      try {
+        const a = localStorage.getItem(STORAGE_KEYS.accounts);
+        const act = localStorage.getItem(STORAGE_KEYS.activities);
+        const w = localStorage.getItem(STORAGE_KEYS.wins);
+        accounts = a ? JSON.parse(a) : [];
+        activities = act ? JSON.parse(act) : [];
+        wins = w ? JSON.parse(w) : [];
+      } catch (e) {
+        console.error("加载数据失败", e);
+        accounts = [];
+        activities = [];
+        wins = [];
+      }
+
+      // 兼容旧数据：没有 createdAt 时给一个较早的时间，避免排序出错
+      const fallbackDate = "2000-01-01T00:00:00.000Z";
+      accounts.forEach(a => { if (!a.createdAt) a.createdAt = fallbackDate; });
+      activities.forEach(a => { if (!a.createdAt) a.createdAt = fallbackDate; });
+    }
+
+    function saveData() {
+      localStorage.setItem(STORAGE_KEYS.accounts, JSON.stringify(accounts));
+      localStorage.setItem(STORAGE_KEYS.activities, JSON.stringify(activities));
+      localStorage.setItem(STORAGE_KEYS.wins, JSON.stringify(wins));
+      refreshCounts();
+    }
+
+    function refreshCounts() {
+      document.getElementById("accounts-count").textContent = accounts.length;
+      document.getElementById("activities-count").textContent = activities.length;
+      document.getElementById("wins-count").textContent = wins.length;
+    }
+
+    function generateAccountId() {
+      let maxNum = 0;
+      accounts.forEach(a => {
+        if (a.id && a.id.startsWith("A")) {
+          const n = parseInt(a.id.slice(1), 10);
+          if (!isNaN(n) && n > maxNum) maxNum = n;
+        }
+      });
+      return "A" + String(maxNum + 1).padStart(4, "0");
+    }
+
+    function generateActivityId() {
+      let maxNum = 0;
+      activities.forEach(a => {
+        if (a.id && a.id.startsWith("E")) {
+          const n = parseInt(a.id.slice(1), 10);
+          if (!isNaN(n) && n > maxNum) maxNum = n;
+        }
+      });
+      return "E" + String(maxNum + 1).padStart(4, "0");
+    }
+
+    function generateWinId() {
+      let maxNum = 0;
+      wins.forEach(w => {
+        if (w.id && w.id.startsWith("W")) {
+          const n = parseInt(w.id.slice(1), 10);
+          if (!isNaN(n) && n > maxNum) maxNum = n;
+        }
+      });
+      return "W" + String(maxNum + 1).padStart(6, "0");
+    }
+
+    function formatDateTime(iso) {
+      if (!iso) return "-";
+      try {
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return iso;
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        const hh = String(d.getHours()).padStart(2, "0");
+        const mm = String(d.getMinutes()).padStart(2, "0");
+        return `${y}-${m}-${day} ${hh}:${mm}`;
+      } catch {
+        return iso;
+      }
+    }
+
+    // ========= Tab =========
+    function setupTabs() {
+      const buttons = document.querySelectorAll(".tab-button");
+      const contents = document.querySelectorAll(".tab-content");
+
+      buttons.forEach(btn => {
+        btn.addEventListener("click", () => {
+          const tab = btn.getAttribute("data-tab");
+          buttons.forEach(b => b.classList.remove("active"));
+          contents.forEach(c => c.classList.remove("active"));
+          btn.classList.add("active");
+          document.getElementById("tab-" + tab).classList.add("active");
+
+          if (tab === "stats") {
+            renderStats();
+          } else if (tab === "backup") {
+            updateExportText();
+          }
+        });
+      });
+    }
+
+    // ========= 账号库 =========
+    function updateAccountCurrentEdit(text) {
+      const el = document.getElementById("account-current-edit");
+      if (el) el.innerHTML = `当前模式：<span>${text}</span>`;
+    }
+
+    function resetAccountForm() {
+      document.getElementById("account-edit-index").value = "";
+      document.getElementById("account-id").value = "";
+      document.getElementById("account-email").value = "";
+      document.getElementById("account-status").value = "可用";
+      document.getElementById("account-label").value = "";
+      document.getElementById("account-note").value = "";
+      updateAccountCurrentEdit("新建账号");
+    }
+
+    function loadAccountToForm(idx) {
+      const acc = accounts[idx];
+      document.getElementById("account-edit-index").value = idx;
+      document.getElementById("account-id").value = acc.id || "";
+      document.getElementById("account-email").value = acc.email || "";
+      document.getElementById("account-status").value = acc.status || "可用";
+      document.getElementById("account-label").value = acc.label || "";
+      document.getElementById("account-note").value = acc.note || "";
+      updateAccountCurrentEdit(`编辑账号 ${acc.id}`);
+    }
+
+    function renderAccountsTable() {
+      const tbody = document.getElementById("accounts-tbody");
+      tbody.innerHTML = "";
+
+      // 统计每个账号中奖次数和最近中奖
+      const winStats = {};
+      wins.forEach(w => {
+        if (!winStats[w.accountId]) {
+          winStats[w.accountId] = { total: 0, lastEvent: "", lastDate: "" };
+        }
+        const s = winStats[w.accountId];
+        s.total += 1;
+        const d = w.eventDate || w.createdAt || "";
+        if (!s.lastDate || d > s.lastDate) {
+          s.lastDate = d;
+          s.lastEvent = w.eventName || "";
+        }
+      });
+
+      const keyword = (accountSearchKeyword || "").toLowerCase();
+      const statusFilter = accountStatusFilter || "";
+
+      // 先构造带 index 的列表，再按创建时间倒序排序
+      const list = accounts.map((acc, index) => ({ acc, index }));
+      list.sort((a, b) => {
+        const da = a.acc.createdAt || "";
+        const db = b.acc.createdAt || "";
+        return db.localeCompare(da); // 新的在上
+      });
+
+      list.forEach(item => {
+        const acc = item.acc;
+        const index = item.index;
+
+        if (statusFilter && acc.status !== statusFilter) return;
+
+        if (keyword) {
+          const text =
+            (acc.id || "") +
+            " " +
+            (acc.email || "") +
+            " " +
+            (acc.label || "") +
+            " " +
+            (acc.note || "");
+          if (!text.toLowerCase().includes(keyword)) return;
+        }
+
+        const tr = document.createElement("tr");
+
+        let statusClass = "tag-warning";
+        if (acc.status === "可用") statusClass = "tag-success";
+        else if (acc.status === "封禁" || acc.status === "黑名单")
+          statusClass = "tag-danger";
+
+        const stat = winStats[acc.id] || { total: 0, lastEvent: "", lastDate: "" };
+        const lastInfo = stat.lastEvent
+          ? `${stat.lastEvent}（${stat.lastDate || "日期未填"}）`
+          : "-";
+
+        tr.innerHTML = `
+          <td><input type="checkbox" class="account-select" data-index="${index}" /></td>
+          <td>${acc.id}</td>
+          <td>${acc.email}</td>
+          <td><span class="tag ${statusClass}">${acc.status || ""}</span></td>
+          <td>${acc.label || ""}</td>
+          <td>${stat.total}</td>
+          <td>${lastInfo}</td>
+          <td>${formatDateTime(acc.createdAt)}</td>
+          <td>
+            <div class="table-actions">
+              <button type="button" class="btn-secondary" data-action="detail" data-index="${index}">详情</button>
+              <button type="button" class="btn-secondary" data-action="edit" data-index="${index}">编辑</button>
+              <button type="button" class="btn-danger" data-action="delete" data-index="${index}">删除</button>
+            </div>
+          </td>
+        `;
+
+        tbody.appendChild(tr);
+      });
+
+      tbody.querySelectorAll("button").forEach(btn => {
+        btn.addEventListener("click", handleAccountRowAction);
+      });
+
+      refreshCounts();
+    }
+
+    function openAccountDetailModal(accountId) {
+      const modal = document.getElementById("account-detail-modal");
+      const titleEl = document.getElementById("account-detail-title");
+      const bodyEl = document.getElementById("account-detail-body");
+
+      const acc = accounts.find(a => a.id === accountId);
+      if (!acc) {
+        titleEl.textContent = "账号详情";
+        bodyEl.textContent = "账号不存在。";
+        modal.classList.add("active");
+        return;
+      }
+
+      const accWins = wins
+        .filter(w => w.accountId === acc.id)
+        .sort((a, b) =>
+          (b.eventDate || b.createdAt || "").localeCompare(
+            a.eventDate || a.createdAt || ""
+          )
+        );
+
+      titleEl.textContent = `账号详情：${acc.id} - ${acc.email}`;
+      if (!accWins.length) {
+        bodyEl.innerHTML = `
+          <div style="margin-bottom:6px;">状态：${acc.status || ""} ｜ 标签：${acc.label || ""} ｜ 创建：${formatDateTime(acc.createdAt)}</div>
+          <div class="muted">该账号目前没有任何中奖记录。</div>
+        `;
+      } else {
+        let html = `<div style="margin-bottom:6px;">状态：${acc.status || ""} ｜ 标签：${acc.label || ""} ｜ 创建：${formatDateTime(acc.createdAt)}</div>`;
+        html += `<table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead>
+            <tr>
+              <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">中奖ID</th>
+              <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">活动</th>
+              <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">日期</th>
+              <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">奖项</th>
+              <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">备注</th>
+            </tr>
+          </thead>
+          <tbody>`;
+        accWins.forEach(w => {
+          const prize =
+            (w.prizeLevel || "") + (w.prizeName ? " " + w.prizeName : "");
+          html += `<tr>
+            <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${w.id}</td>
+            <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${w.eventName || "-"}</td>
+            <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${w.eventDate || "-"}</td>
+            <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${prize.trim() || "-"}</td>
+            <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${w.note || ""}</td>
+          </tr>`;
+        });
+        html += "</tbody></table>";
+        bodyEl.innerHTML = html;
+      }
+
+      modal.classList.add("active");
+    }
+
+    function closeAccountDetailModal() {
+      const modal = document.getElementById("account-detail-modal");
+      modal.classList.remove("active");
+    }
+
+    function handleAccountRowAction(e) {
+      const btn = e.currentTarget;
+      const idx = parseInt(btn.getAttribute("data-index"), 10);
+      const action = btn.getAttribute("data-action");
+      if (isNaN(idx) || !accounts[idx]) return;
+      const acc = accounts[idx];
+
+      if (action === "edit") {
+        loadAccountToForm(idx);
+        document
+          .getElementById("tab-accounts")
+          .scrollIntoView({ behavior: "smooth", block: "start" });
+      } else if (action === "delete") {
+        if (!confirm(`确定删除账号 ${acc.id} (${acc.email}) 吗？其所有中奖记录和参与记录也会被删除！`)) return;
+        const id = acc.id;
+        accounts.splice(idx, 1);
+        wins = wins.filter(w => w.accountId !== id);
+        activities.forEach(act => {
+          act.participants = (act.participants || []).filter(aid => aid !== id);
+        });
+        saveData();
+        renderAccountsTable();
+        renderActivitiesTable();
+        renderWinsTable();
+        renderStats();
+      } else if (action === "detail") {
+        openAccountDetailModal(acc.id);
+      }
+    }
+
+    function setupAccountForm() {
+      const form = document.getElementById("account-form");
+      const resetBtn = document.getElementById("account-reset-btn");
+      const searchInput = document.getElementById("account-search");
+      const statusFilterSelect = document.getElementById("account-status-filter");
+
+      resetBtn.addEventListener("click", e => {
+        e.preventDefault();
+        resetAccountForm();
+      });
+
+      form.addEventListener("submit", e => {
+        e.preventDefault();
+        const editIndex = document
+          .getElementById("account-edit-index")
+          .value.trim();
+        const email = document.getElementById("account-email").value.trim();
+        const status = document.getElementById("account-status").value.trim();
+        const label = document.getElementById("account-label").value.trim();
+        const note = document.getElementById("account-note").value.trim();
+
+        if (!email) {
+          alert("邮箱不能为空。");
+          return;
+        }
+
+        if (editIndex === "") {
+          if (
+            accounts.some(
+              a => (a.email || "").toLowerCase() === email.toLowerCase()
+            )
+          ) {
+            if (!confirm("已存在相同邮箱的账号，仍然要新建一条吗？")) return;
+          }
+          const id = generateAccountId();
+          const createdAt = new Date().toISOString();
+          accounts.push({ id, email, status, label, note, createdAt });
+        } else {
+          const idx = parseInt(editIndex, 10);
+          if (!accounts[idx]) return;
+          accounts[idx].email = email;
+          accounts[idx].status = status;
+          accounts[idx].label = label;
+          accounts[idx].note = note;
+          if (!accounts[idx].createdAt) {
+            accounts[idx].createdAt = new Date().toISOString();
+          }
+        }
+        saveData();
+        renderAccountsTable();
+        renderActivitiesTable();
+        renderStats();
+        resetAccountForm();
+      });
+
+      // 搜索
+      searchInput.addEventListener("input", e => {
+        accountSearchKeyword = e.target.value || "";
+        renderAccountsTable();
+      });
+
+      statusFilterSelect.addEventListener("change", e => {
+        accountStatusFilter = e.target.value || "";
+        renderAccountsTable();
+      });
+
+      setupAccountBatchActions();
+      setupAccountImport();
+    }
+
+    function setupAccountBatchActions() {
+      const selectAll = document.getElementById("accounts-select-all");
+      const batchStatusSelect = document.getElementById("batch-status-select");
+      const batchStatusBtn = document.getElementById("batch-set-status-btn");
+      const batchDeleteBtn = document.getElementById("batch-delete-btn");
+
+      selectAll.addEventListener("change", () => {
+        const checked = selectAll.checked;
+        document
+          .querySelectorAll("#accounts-tbody .account-select")
+          .forEach(cb => (cb.checked = checked));
+      });
+
+      batchStatusBtn.addEventListener("click", () => {
+        const newStatus = batchStatusSelect.value;
+        if (!newStatus) {
+          alert("请在下拉框选择需要批量设置的状态。");
+          return;
+        }
+        const selected = Array.from(
+          document.querySelectorAll("#accounts-tbody .account-select:checked")
+        );
+        if (!selected.length) {
+          alert("请勾选需要修改状态的账号。");
+          return;
+        }
+        if (
+          !confirm(
+            `确认将选中的 ${selected.length} 个账号状态修改为「${newStatus}」吗？`
+          )
+        )
+          return;
+
+        selected.forEach(cb => {
+          const idx = parseInt(cb.getAttribute("data-index"), 10);
+          if (!isNaN(idx) && accounts[idx]) {
+            accounts[idx].status = newStatus;
+          }
+        });
+        saveData();
+        renderAccountsTable();
+        renderActivitiesTable();
+        renderStats();
+      });
+
+      batchDeleteBtn.addEventListener("click", () => {
+        const selected = Array.from(
+          document.querySelectorAll("#accounts-tbody .account-select:checked")
+        );
+        if (!selected.length) {
+          alert("请勾选需要删除的账号。");
+          return;
+        }
+        if (
+          !confirm(
+            `确认删除选中的 ${selected.length} 个账号吗？对应的中奖记录和参与记录也会一起删除！`
+          )
+        )
+          return;
+
+        const indices = selected.map(cb =>
+          parseInt(cb.getAttribute("data-index"), 10)
+        );
+        const idsToDelete = indices
+          .map(i => accounts[i] && accounts[i].id)
+          .filter(Boolean);
+
+        accounts = accounts.filter((acc, i) => !indices.includes(i));
+        wins = wins.filter(w => !idsToDelete.includes(w.accountId));
+        activities.forEach(act => {
+          act.participants = (act.participants || []).filter(
+            aid => !idsToDelete.includes(aid)
+          );
+        });
+
+        saveData();
+        renderAccountsTable();
+        renderActivitiesTable();
+        renderWinsTable();
+        renderStats();
+        selectAll.checked = false;
+      });
+    }
+
+    // 简单导入：取 CSV 第一列为邮箱
+    function setupAccountImport() {
+      const fileInput = document.getElementById("account-import-file");
+      const importBtn = document.getElementById("account-import-btn");
+
+      importBtn.addEventListener("click", () => {
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) {
+          alert("请先选择要导入的 CSV 文件。（建议：只导出一列邮箱，CSV UTF-8）");
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = e => {
+          const text = e.target.result || "";
+          if (!text) {
+            alert("文件内容为空。");
+            return;
+          }
+          const lines = text
+            .split(/\r?\n/)
+            .map(l => l.trim())
+            .filter(l => l.length > 0);
+          if (!lines.length) {
+            alert("文件内容为空。");
+            return;
+          }
+
+          let imported = 0;
+          let skipped = 0;
+          const nowIso = new Date().toISOString();
+
+          lines.forEach(line => {
+            let email = line;
+            if (line.includes(",")) {
+              email = line.split(",")[0].trim();
+            }
+            if (!email || !email.includes("@")) {
+              skipped++;
+              return;
+            }
+            if (
+              accounts.some(
+                a => (a.email || "").toLowerCase() === email.toLowerCase()
+              )
+            ) {
+              skipped++;
+              return;
+            }
+            const id = generateAccountId();
+            accounts.push({
+              id,
+              email,
+              status: "可用",
+              label: "",
+              note: "导入创建",
+              createdAt: nowIso,
+            });
+            imported++;
+          });
+
+          saveData();
+          renderAccountsTable();
+          renderActivitiesTable();
+          renderStats();
+          alert(
+            `导入完成：成功导入 ${imported} 条；跳过 ${skipped} 条（格式错误或邮箱重复）。`
+          );
+        };
+        reader.readAsText(file, "utf-8");
+      });
+    }
+
+    // ========= 活动管理 =========
+    let activityFormParticipants = []; // 当前表单中的参与账号列表（账号ID）
+
+    function updateActivityCurrentEdit(text) {
+      const el = document.getElementById("activity-current-edit");
+      if (el) el.innerHTML = `当前模式：<span>${text}</span>`;
+    }
+
+    function updateActivityParticipantsCountInput() {
+      document.getElementById("activity-participants-count").value =
+        activityFormParticipants.length;
+    }
+
+    function resetActivityForm() {
+      document.getElementById("activity-edit-index").value = "";
+      document.getElementById("activity-id").value = "";
+      document.getElementById("activity-name").value = "";
+      document.getElementById("activity-date").value = "";
+      document.getElementById("activity-status").value = "进行中";
+      document.getElementById("activity-prize-name").value = "";
+      document.getElementById("activity-prize-level").value = "";
+      document.getElementById("activity-note").value = "";
+      activityFormParticipants = [];
+      updateActivityParticipantsCountInput();
+      updateActivityCurrentEdit("新建活动");
+    }
+
+    function loadActivityToForm(idx) {
+      const act = activities[idx];
+      document.getElementById("activity-edit-index").value = idx;
+      document.getElementById("activity-id").value = act.id || "";
+      document.getElementById("activity-name").value = act.name || "";
+      document.getElementById("activity-date").value = act.date || "";
+      document.getElementById("activity-status").value =
+        act.status || "进行中";
+      document.getElementById("activity-prize-name").value =
+        act.prizeName || "";
+      document.getElementById("activity-prize-level").value =
+        act.prizeLevel || "";
+      document.getElementById("activity-note").value = act.note || "";
+      activityFormParticipants = Array.isArray(act.participants)
+        ? [...act.participants]
+        : [];
+      updateActivityParticipantsCountInput();
+      updateActivityCurrentEdit(`编辑活动 ${act.id}`);
+    }
+
+    function renderActivitiesTable() {
+      const tbody = document.getElementById("activities-tbody");
+      tbody.innerHTML = "";
+
+      const keyword = (activitySearchKeyword || "").toLowerCase();
+
+      activities.forEach((act, index) => {
+        if (keyword) {
+          const text =
+            (act.id || "") +
+            " " +
+            (act.name || "") +
+            " " +
+            (act.note || "");
+          if (!text.toLowerCase().includes(keyword)) return;
+        }
+
+        const participants = act.participants || [];
+        const winsOfAct = wins.filter(w => w.activityId === act.id);
+        const pCount = participants.length;
+        const wCount = winsOfAct.length;
+        const rate =
+          pCount > 0 ? ((wCount / pCount) * 100).toFixed(1) + "%" : "-";
+
+        let statusClass = "tag-warning";
+        if (act.status === "进行中") statusClass = "tag-success";
+        else if (act.status === "已结束") statusClass = "tag-danger";
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${act.id}</td>
+          <td>${act.name}</td>
+          <td>${act.date || "-"}</td>
+          <td><span class="tag ${statusClass}">${act.status || ""}</span></td>
+          <td>${pCount}</td>
+          <td>${wCount}</td>
+          <td>${rate}</td>
+          <td>
+            <div class="table-actions">
+              <button type="button" class="btn-secondary" data-action="goto-winner" data-index="${index}">录入中奖</button>
+              <button type="button" class="btn-secondary" data-action="edit" data-index="${index}">编辑</button>
+              <button type="button" class="btn-danger" data-action="delete" data-index="${index}">删除</button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      tbody.querySelectorAll("button").forEach(btn => {
+        btn.addEventListener("click", handleActivityRowAction);
+      });
+
+      refreshCounts();
+      updateActivityOptionsForWinner();
+    }
+
+    function handleActivityRowAction(e) {
+      const btn = e.currentTarget;
+      const idx = parseInt(btn.getAttribute("data-index"), 10);
+      const action = btn.getAttribute("data-action");
+      if (isNaN(idx) || !activities[idx]) return;
+      const act = activities[idx];
+
+      if (action === "edit") {
+        loadActivityToForm(idx);
+        document
+          .getElementById("tab-activities")
+          .scrollIntoView({ behavior: "smooth", block: "start" });
+      } else if (action === "delete") {
+        if (
+          !confirm(
+            `确定删除活动 ${act.id}（${act.name}）吗？该活动下所有中奖记录也会被删除！`
+          )
+        )
+          return;
+        const id = act.id;
+        activities.splice(idx, 1);
+        wins = wins.filter(w => w.activityId !== id);
+        saveData();
+        renderActivitiesTable();
+        renderWinsTable();
+        renderStats();
+      } else if (action === "goto-winner") {
+        document
+          .querySelector('.tab-button[data-tab="winners"]')
+          .click();
+        document.getElementById("win-activity-id").value = act.id;
+        updateWinnerActivitySummary();
+      }
+    }
+
+    function setupActivityForm() {
+      const form = document.getElementById("activity-form");
+      const resetBtn = document.getElementById("activity-reset-btn");
+      const selectAllBtn = document.getElementById(
+        "activity-select-all-available-btn"
+      );
+      const clearBtn = document.getElementById(
+        "activity-clear-participants-btn"
+      );
+      const searchInput = document.getElementById("activity-search");
+
+      resetBtn.addEventListener("click", e => {
+        e.preventDefault();
+        resetActivityForm();
+      });
+
+      selectAllBtn.addEventListener("click", () => {
+        const available = accounts
+          .filter(a => a.status === "可用")
+          .map(a => a.id);
+        activityFormParticipants = available;
+        updateActivityParticipantsCountInput();
+        alert(`已选择 ${available.length} 个「可用」账号参与本活动。`);
+      });
+
+      clearBtn.addEventListener("click", () => {
+        activityFormParticipants = [];
+        updateActivityParticipantsCountInput();
+      });
+
+      form.addEventListener("submit", e => {
+        e.preventDefault();
+        const editIndex = document
+          .getElementById("activity-edit-index")
+          .value.trim();
+        const name = document.getElementById("activity-name").value.trim();
+        const date = document.getElementById("activity-date").value.trim();
+        const status = document
+          .getElementById("activity-status")
+          .value.trim();
+        const prizeName = document
+          .getElementById("activity-prize-name")
+          .value.trim();
+        const prizeLevel = document
+          .getElementById("activity-prize-level")
+          .value.trim();
+        const note = document.getElementById("activity-note").value.trim();
+
+        if (!name) {
+          alert("请填写活动名称。");
+          return;
+        }
+
+        if (editIndex === "") {
+          const id = generateActivityId();
+          const act = {
+            id,
+            name,
+            date,
+            status,
+            prizeName,
+            prizeLevel,
+            note,
+            participants: [...activityFormParticipants],
+            createdAt: new Date().toISOString(),
+          };
+          activities.push(act);
+        } else {
+          const idx = parseInt(editIndex, 10);
+          if (!activities[idx]) return;
+          const act = activities[idx];
+          act.name = name;
+          act.date = date;
+          act.status = status;
+          act.prizeName = prizeName;
+          act.prizeLevel = prizeLevel;
+          act.note = note;
+          act.participants = [...activityFormParticipants];
+          if (!act.createdAt) act.createdAt = new Date().toISOString();
+        }
+
+        saveData();
+        renderActivitiesTable();
+        renderStats();
+        resetActivityForm();
+      });
+
+      searchInput.addEventListener("input", e => {
+        activitySearchKeyword = e.target.value || "";
+        renderActivitiesTable();
+      });
+    }
+
+    function updateActivityOptionsForWinner() {
+      const select = document.getElementById("win-activity-id");
+      const current = select.value;
+      select.innerHTML = '<option value="">请选择活动</option>';
+      activities.forEach(act => {
+        const opt = document.createElement("option");
+        opt.value = act.id;
+        opt.textContent = `${act.id} - ${act.name}`;
+        select.appendChild(opt);
+      });
+      if (current && activities.some(a => a.id === current)) {
+        select.value = current;
+      }
+      updateWinnerActivitySummary();
+    }
+
+    // ========= 中奖录入 =========
+    function resetWinnerForm() {
+      document.getElementById("win-activity-id").value = "";
+      document.getElementById("win-event-date").value = "";
+      document.getElementById("win-prize-name").value = "";
+      document.getElementById("win-prize-level").value = "";
+      document.getElementById("win-note").value = "";
+      document.getElementById("win-accounts-text").value = "";
+      updateWinnerActivitySummary();
+    }
+
+    function updateWinnerActivitySummary() {
+      const summaryEl = document.getElementById("win-activity-summary");
+      const select = document.getElementById("win-activity-id");
+      const id = select.value;
+      if (!id) {
+        summaryEl.textContent =
+          "未选择活动。请选择活动后再录入中奖账号。";
+        return;
+      }
+      const act = activities.find(a => a.id === id);
+      if (!act) {
+        summaryEl.textContent = "当前活动不存在。";
+        return;
+      }
+      const participants = act.participants || [];
+      const winsOfAct = wins.filter(w => w.activityId === id);
+      const pCount = participants.length;
+      const wCount = winsOfAct.length;
+      const rate =
+        pCount > 0 ? ((wCount / pCount) * 100).toFixed(1) + "%" : "-";
+      summaryEl.textContent = `当前活动：${act.name} ｜ 参与账号：${pCount} 个 ｜ 已登记中奖：${wCount} 个 ｜ 中奖率：${rate}`;
+    }
+
+    function setupWinnerForm() {
+      const form = document.getElementById("winner-form");
+      const resetBtn = document.getElementById("winner-reset-btn");
+      const activitySelect = document.getElementById("win-activity-id");
+
+      resetBtn.addEventListener("click", e => {
+        e.preventDefault();
+        resetWinnerForm();
+      });
+
+      activitySelect.addEventListener("change", () => {
+        const actId = activitySelect.value;
+        const act = activities.find(a => a.id === actId);
+        if (act) {
+          document.getElementById("win-event-date").value = act.date || "";
+          if (!document.getElementById("win-prize-name").value) {
+            document.getElementById("win-prize-name").value =
+              act.prizeName || "";
+          }
+          if (!document.getElementById("win-prize-level").value) {
+            document.getElementById("win-prize-level").value =
+              act.prizeLevel || "";
+          }
+        }
+        updateWinnerActivitySummary();
+      });
+
+      form.addEventListener("submit", e => {
+        e.preventDefault();
+        const activityId =
+          document.getElementById("win-activity-id").value;
+        const eventDate =
+          document.getElementById("win-event-date").value.trim();
+        let prizeName =
+          document.getElementById("win-prize-name").value.trim();
+        let prizeLevel =
+          document.getElementById("win-prize-level").value.trim();
+        const note =
+          document.getElementById("win-note").value.trim();
+        const accountsText = document
+          .getElementById("win-accounts-text")
+          .value.trim();
+
+        if (!activityId) {
+          alert("请先选择活动。");
+          return;
+        }
+        const act = activities.find(a => a.id === activityId);
+        if (!act) {
+          alert("活动不存在，请重新选择。");
+          return;
+        }
+        if (!accountsText) {
+          alert("请粘贴至少一个中奖账号（每行一个账号ID或邮箱）。");
+          return;
+        }
+        if (!prizeName) prizeName = act.prizeName || "";
+        if (!prizeLevel) prizeLevel = act.prizeLevel || "";
+
+        const lines = accountsText
+          .split(/\r?\n/)
+          .map(l => l.trim())
+          .filter(l => l.length > 0);
+
+        if (!lines.length) {
+          alert("中奖账号列表为空。");
+          return;
+        }
+
+        let created = 0;
+        const notFound = [];
+
+        lines.forEach(line => {
+          const key = line.toLowerCase();
+          const acc = accounts.find(
+            a =>
+              (a.id && a.id.toLowerCase() === key) ||
+              ((a.email || "").toLowerCase() === key)
+          );
+          if (!acc) {
+            notFound.push(line);
+            return;
+          }
+          const id = generateWinId();
+          const win = {
+            id,
+            accountId: acc.id,
+            activityId,
+            eventName: act.name,
+            eventDate: eventDate || act.date || "",
+            prizeName,
+            prizeLevel,
+            note,
+            createdAt: new Date().toISOString(),
+          };
+          wins.push(win);
+          created++;
+        });
+
+        saveData();
+        renderAccountsTable();
+        renderActivitiesTable();
+        renderWinsTable();
+        renderStats();
+        updateWinnerActivitySummary();
+
+        let msg = `登记完成：成功为 ${created} 个账号新增中奖记录。`;
+        if (notFound.length) {
+          msg += `\n以下 ${notFound.length} 行未找到对应账号（ID 或邮箱），请检查：\n` +
+            notFound.slice(0, 10).join("\n") +
+            (notFound.length > 10 ? "\n..." : "");
+        }
+        alert(msg);
+      });
+    }
+
+    function renderWinsTable() {
+      const tbody = document.getElementById("wins-tbody");
+      tbody.innerHTML = "";
+
+      const sorted = [...wins].sort((a, b) =>
+        (b.eventDate || b.createdAt || "").localeCompare(
+          a.eventDate || a.createdAt || ""
+        )
+      );
+      const list = sorted.slice(0, 50);
+
+      list.forEach(w => {
+        const acc = accounts.find(a => a.id === w.accountId);
+        const prize =
+          (w.prizeLevel || "") + (w.prizeName ? " " + w.prizeName : "");
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${w.id}</td>
+          <td>${acc ? acc.id + " - " + acc.email : w.accountId}</td>
+          <td>${w.eventName || "-"}</td>
+          <td>${w.eventDate || "-"}</td>
+          <td>${prize.trim() || "-"}</td>
+          <td>${w.note || ""}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // ========= 统计视图 =========
+    function renderStats() {
+      const accContainer = document.getElementById("stats-accounts");
+      const actContainer = document.getElementById("stats-activities");
+      accContainer.innerHTML = "";
+      actContainer.innerHTML = "";
+
+      // 账号维度
+      if (!accounts.length) {
+        accContainer.innerHTML = '<div class="muted">还没有账号数据。</div>';
+      } else {
+        const statsMap = new Map();
+        wins.forEach(w => {
+          if (!statsMap.has(w.accountId)) {
+            statsMap.set(w.accountId, { total: 0, lastEvent: "", lastDate: "" });
+          }
+          const s = statsMap.get(w.accountId);
+          s.total += 1;
+          const d = w.eventDate || w.createdAt || "";
+          if (!s.lastDate || d > s.lastDate) {
+            s.lastDate = d;
+            s.lastEvent = w.eventName || "";
+          }
+        });
+
+        const list = accounts.map(acc => {
+          const s = statsMap.get(acc.id) || {
+            total: 0,
+            lastEvent: "",
+            lastDate: "",
+          };
+          return { acc, total: s.total, lastEvent: s.lastEvent, lastDate: s.lastDate };
+        });
+
+        list.sort((a, b) => b.total - a.total);
+
+        list.forEach(item => {
+          const { acc, total, lastEvent, lastDate } = item;
+          let statusClass = "tag-warning";
+          if (acc.status === "可用") statusClass = "tag-success";
+          else if (acc.status === "封禁" || acc.status === "黑名单")
+            statusClass = "tag-danger";
+
+          const card = document.createElement("div");
+          card.className = "stat-card";
+          card.innerHTML = `
+            <h3>${acc.id} - ${acc.email}</h3>
+            <div>状态：<span class="tag ${statusClass}">${acc.status || ""}</span> ｜ 标签：${acc.label || "-"}</div>
+            <div style="margin-top:4px;">总中奖次数：<strong>${total}</strong></div>
+            <div style="margin-top:4px;">最近中奖：${
+              lastEvent ? lastEvent + "（" + (lastDate || "日期未填") + "）" : "-"
+            }</div>
+          `;
+          accContainer.appendChild(card);
+        });
+      }
+
+      // 活动维度
+      if (!activities.length) {
+        actContainer.innerHTML = '<div class="muted">还没有活动数据。</div>';
+      } else {
+        activities.forEach(act => {
+          const participants = act.participants || [];
+          const winsOfAct = wins.filter(w => w.activityId === act.id);
+          const pCount = participants.length;
+          const wCount = winsOfAct.length;
+          const rate =
+            pCount > 0 ? ((wCount / pCount) * 100).toFixed(1) + "%" : "-";
+
+          let statusClass = "tag-warning";
+          if (act.status === "进行中") statusClass = "tag-success";
+          else if (act.status === "已结束") statusClass = "tag-danger";
+
+          const card = document.createElement("div");
+          card.className = "stat-card";
+          card.innerHTML = `
+            <h3>${act.id} - ${act.name}</h3>
+            <div>状态：<span class="tag ${statusClass}">${act.status || ""}</span> ｜ 日期：${act.date || "-"}</div>
+            <div style="margin-top:4px;">参与账号：<strong>${pCount}</strong> 个</div>
+            <div style="margin-top:4px;">中奖账号：<strong>${wCount}</strong> 个</div>
+            <div style="margin-top:4px;">中奖率：<strong>${rate}</strong></div>
+          `;
+          actContainer.appendChild(card);
+        });
+      }
+    }
+
+    // ========= 数据备份 =========
+    function updateExportText() {
+      const obj = {
+        accounts,
+        activities,
+        wins,
+        exportedAt: new Date().toISOString(),
+      };
+      document.getElementById("export-text").value = JSON.stringify(
+        obj,
+        null,
+        2
+      );
+    }
+
+    function setupBackup() {
+      const exportBtn = document.getElementById("export-btn");
+      const importBtn = document.getElementById("import-btn");
+      const clearAllBtn = document.getElementById("clear-all-btn");
+
+      exportBtn.addEventListener("click", () => {
+        updateExportText();
+        alert("已生成最新导出数据，可以复制保存为 .json 文件。");
+      });
+
+      importBtn.addEventListener("click", () => {
+        const text = document.getElementById("import-text").value.trim();
+        if (!text) {
+          alert("请先在右侧文本框粘贴 JSON 数据。");
+          return;
+        }
+        if (
+          !confirm("导入 JSON 会覆盖当前所有账号、活动和中奖记录，确定继续吗？")
+        )
+          return;
+        try {
+          const obj = JSON.parse(text);
+          accounts = Array.isArray(obj.accounts) ? obj.accounts : [];
+          activities = Array.isArray(obj.activities) ? obj.activities : [];
+          wins = Array.isArray(obj.wins) ? obj.wins : [];
+          saveData();
+          renderAccountsTable();
+          renderActivitiesTable();
+          renderWinsTable();
+          renderStats();
+          updateExportText();
+          alert("导入成功。");
+        } catch (e) {
+          console.error(e);
+          alert("导入失败：JSON 格式不正确。");
+        }
+      });
+
+      clearAllBtn.addEventListener("click", () => {
+        if (
+          !confirm("确定清空所有账号、活动和中奖记录吗？此操作不可恢复！")
+        )
+          return;
+        accounts = [];
+        activities = [];
+        wins = [];
+        saveData();
+        renderAccountsTable();
+        renderActivitiesTable();
+        renderWinsTable();
+        renderStats();
+        updateExportText();
+        document.getElementById("import-text").value = "";
+        alert("已清空所有数据。");
+      });
+    }
+
+    // ========= 初始化 & 弹窗绑定 =========
+    function initModal() {
+      const modal = document.getElementById("account-detail-modal");
+      const closeBtn = document.getElementById("account-detail-close-btn");
+
+      closeBtn.addEventListener("click", () => {
+        closeAccountDetailModal();
+      });
+
+      modal.addEventListener("click", e => {
+        if (e.target === modal) {
+          closeAccountDetailModal();
+        }
+      });
+    }
+
+    function init() {
+      loadData();
+      setupTabs();
+      setupAccountForm();
+      setupActivityForm();
+      setupWinnerForm();
+      setupBackup();
+      initModal();
+
+      renderAccountsTable();
+      renderActivitiesTable();
+      renderWinsTable();
+      renderStats();
+      updateExportText();
+      resetAccountForm();
+      resetActivityForm();
+      resetWinnerForm();
+    }
+
+    document.addEventListener("DOMContentLoaded", init);
+  </script>
+</body>
+</html>
