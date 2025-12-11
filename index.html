@@ -379,7 +379,7 @@
           </div>
         </div>
 
-        <!-- 新增：从文本直接批量新增邮箱 -->
+        <!-- 从文本直接批量新增邮箱 -->
         <div class="form-grid" style="margin-top:6px;">
           <div class="form-group" style="grid-column:1/-1;">
             <label>从文本批量新增邮箱（每行一个邮箱地址）</label>
@@ -613,6 +613,19 @@
         <button class="modal-close-btn" id="account-detail-close-btn">×</button>
       </div>
       <div class="modal-body" id="account-detail-body">
+        <!-- 动态填充 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- 活动详情弹窗 -->
+  <div id="activity-detail-modal" class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="activity-detail-title">活动详情</h3>
+        <button class="modal-close-btn" id="activity-detail-close-btn">×</button>
+      </div>
+      <div class="modal-body" id="activity-detail-body">
         <!-- 动态填充 -->
       </div>
     </div>
@@ -868,6 +881,7 @@
         return;
       }
 
+      // 该账号的中奖记录
       const accWins = wins
         .filter(w => w.accountId === acc.id)
         .sort((a, b) =>
@@ -876,14 +890,69 @@
           )
         );
 
+      // 参加过的所有活动
+      const participatedActivities = activities.filter(act =>
+        (act.participants || []).includes(acc.id)
+      );
+
+      // 按活动分组的中奖情况
+      const winByActivity = new Map();
+      accWins.forEach(w => {
+        if (!winByActivity.has(w.activityId)) {
+          winByActivity.set(w.activityId, []);
+        }
+        winByActivity.get(w.activityId).push(w);
+      });
+
       titleEl.textContent = `账号详情：${acc.id} - ${acc.email}`;
-      if (!accWins.length) {
-        bodyEl.innerHTML = `
-          <div style="margin-bottom:6px;">状态：${acc.status || ""} ｜ 标签：${acc.label || ""} ｜ 创建：${formatDateTime(acc.createdAt)}</div>
-          <div class="muted">该账号目前没有任何中奖记录。</div>
-        `;
+
+      let html = `
+        <div style="margin-bottom:6px;">
+          状态：${acc.status || ""} ｜ 标签：${acc.label || ""} ｜ 创建：${formatDateTime(acc.createdAt)}
+        </div>
+        <div style="margin-bottom:8px;font-size:12px;color:#6b7280;">
+          参加活动数：${participatedActivities.length} ｜ 总中奖次数：${accWins.length}
+        </div>
+        <h4 style="margin:4px 0;font-size:13px;">参加过的活动</h4>
+      `;
+
+      if (!participatedActivities.length) {
+        html += `<div class="muted" style="margin-bottom:8px;">尚未记录此账号参与任何活动。</div>`;
       } else {
-        let html = `<div style="margin-bottom:6px;">状态：${acc.status || ""} ｜ 标签：${acc.label || ""} ｜ 创建：${formatDateTime(acc.createdAt)}</div>`;
+        html += `
+          <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px;">
+            <thead>
+              <tr>
+                <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">活动ID</th>
+                <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">活动名称</th>
+                <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">日期</th>
+                <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">是否中奖</th>
+                <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">中奖次数</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+        participatedActivities.forEach(act => {
+          const winsArr = winByActivity.get(act.id) || [];
+          const winCount = winsArr.length;
+          html += `
+            <tr>
+              <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${act.id}</td>
+              <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${act.name}</td>
+              <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${act.date || "-"}</td>
+              <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${winCount > 0 ? "是" : "否"}</td>
+              <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${winCount}</td>
+            </tr>
+          `;
+        });
+        html += "</tbody></table>";
+      }
+
+      html += `<h4 style="margin:4px 0;font-size:13px;">中奖记录明细</h4>`;
+
+      if (!accWins.length) {
+        html += `<div class="muted">该账号目前没有任何中奖记录。</div>`;
+      } else {
         html += `<table style="width:100%;border-collapse:collapse;font-size:12px;">
           <thead>
             <tr>
@@ -907,9 +976,9 @@
           </tr>`;
         });
         html += "</tbody></table>";
-        bodyEl.innerHTML = html;
       }
 
+      bodyEl.innerHTML = html;
       modal.classList.add("active");
     }
 
@@ -1304,6 +1373,7 @@
           <td>${rate}</td>
           <td>
             <div class="table-actions">
+              <button type="button" class="btn-secondary" data-action="detail" data-index="${index}">详情</button>
               <button type="button" class="btn-secondary" data-action="goto-winner" data-index="${index}">录入中奖</button>
               <button type="button" class="btn-secondary" data-action="edit" data-index="${index}">编辑</button>
               <button type="button" class="btn-danger" data-action="delete" data-index="${index}">删除</button>
@@ -1319,6 +1389,87 @@
 
       refreshCounts();
       updateActivityOptionsForWinner();
+    }
+
+    function openActivityDetailModal(activityId) {
+      const modal = document.getElementById("activity-detail-modal");
+      const titleEl = document.getElementById("activity-detail-title");
+      const bodyEl = document.getElementById("activity-detail-body");
+
+      const act = activities.find(a => a.id === activityId);
+      if (!act) {
+        titleEl.textContent = "活动详情";
+        bodyEl.textContent = "活动不存在。";
+        modal.classList.add("active");
+        return;
+      }
+
+      const participants = act.participants || [];
+      const winsOfAct = wins
+        .filter(w => w.activityId === act.id)
+        .sort((a, b) =>
+          (b.eventDate || b.createdAt || "").localeCompare(
+            a.eventDate || a.createdAt || ""
+          )
+        );
+      const pCount = participants.length;
+      const wCount = winsOfAct.length;
+      const rate =
+        pCount > 0 ? ((wCount / pCount) * 100).toFixed(1) + "%" : "-";
+
+      titleEl.textContent = `活动详情：${act.id} - ${act.name}`;
+
+      let html = `
+        <div style="margin-bottom:6px;">
+          状态：${act.status || ""} ｜ 日期：${act.date || "-"} ｜ 创建：${formatDateTime(act.createdAt)}
+        </div>
+        <div style="margin-bottom:8px;font-size:12px;color:#6b7280;">
+          参与账号：${pCount} 个 ｜ 中奖账号：${wCount} 个 ｜ 中奖率：${rate}
+        </div>
+        <h4 style="margin:4px 0;font-size:13px;">中奖账户列表</h4>
+      `;
+
+      if (!winsOfAct.length) {
+        html += `<div class="muted">该活动当前还没有任何中奖记录。</div>`;
+      } else {
+        html += `
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead>
+              <tr>
+                <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">中奖ID</th>
+                <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">账号</th>
+                <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">日期</th>
+                <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">奖项</th>
+                <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">备注</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+        winsOfAct.forEach(w => {
+          const acc = accounts.find(a => a.id === w.accountId);
+          const prize =
+            (w.prizeLevel || "") + (w.prizeName ? " " + w.prizeName : "");
+          const accText = acc ? `${acc.id} - ${acc.email}` : w.accountId;
+          html += `
+            <tr>
+              <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${w.id}</td>
+              <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${accText}</td>
+              <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${w.eventDate || "-"}</td>
+              <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${prize.trim() || "-"}</td>
+              <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${w.note || ""}</td>
+            </tr>
+          `;
+        });
+        html += "</tbody></table>";
+      }
+
+      bodyEl.innerHTML = html;
+      modal.classList.add("active");
+    }
+
+    function closeActivityDetailModal() {
+      const modal = document.getElementById("activity-detail-modal");
+      modal.classList.remove("active");
     }
 
     function handleActivityRowAction(e) {
@@ -1353,6 +1504,8 @@
           .click();
         document.getElementById("win-activity-id").value = act.id;
         updateWinnerActivitySummary();
+      } else if (action === "detail") {
+        openActivityDetailModal(act.id);
       }
     }
 
@@ -1570,6 +1723,7 @@
 
         let created = 0;
         const notFound = [];
+        const duplicated = []; // 当前活动中已存在中奖记录的账号
 
         lines.forEach(line => {
           const key = line.toLowerCase();
@@ -1582,6 +1736,16 @@
             notFound.push(line);
             return;
           }
+
+          // 同一活动 + 同一账号 不可重复提交
+          const exists = wins.some(
+            w => w.activityId === activityId && w.accountId === acc.id
+          );
+          if (exists) {
+            duplicated.push(line);
+            return;
+          }
+
           const id = generateWinId();
           const win = {
             id,
@@ -1607,9 +1771,14 @@
 
         let msg = `登记完成：成功为 ${created} 个账号新增中奖记录。`;
         if (notFound.length) {
-          msg += `\n以下 ${notFound.length} 行未找到对应账号（ID 或邮箱），请检查：\n` +
+          msg += `\n\n未找到账号（ID 或邮箱不匹配），已跳过 ${notFound.length} 行：\n` +
             notFound.slice(0, 10).join("\n") +
             (notFound.length > 10 ? "\n..." : "");
+        }
+        if (duplicated.length) {
+          msg += `\n\n以下 ${duplicated.length} 行为重复账号（本活动已登记过中奖），已自动跳过：\n` +
+            duplicated.slice(0, 10).join("\n") +
+            (duplicated.length > 10 ? "\n..." : "");
         }
         alert(msg);
       });
@@ -1802,16 +1971,27 @@
 
     // ========= 初始化 & 弹窗绑定 =========
     function initModal() {
-      const modal = document.getElementById("account-detail-modal");
-      const closeBtn = document.getElementById("account-detail-close-btn");
-
-      closeBtn.addEventListener("click", () => {
+      // 账号详情弹窗
+      const accModal = document.getElementById("account-detail-modal");
+      const accCloseBtn = document.getElementById("account-detail-close-btn");
+      accCloseBtn.addEventListener("click", () => {
         closeAccountDetailModal();
       });
-
-      modal.addEventListener("click", e => {
-        if (e.target === modal) {
+      accModal.addEventListener("click", e => {
+        if (e.target === accModal) {
           closeAccountDetailModal();
+        }
+      });
+
+      // 活动详情弹窗
+      const actModal = document.getElementById("activity-detail-modal");
+      const actCloseBtn = document.getElementById("activity-detail-close-btn");
+      actCloseBtn.addEventListener("click", () => {
+        closeActivityDetailModal();
+      });
+      actModal.addEventListener("click", e => {
+        if (e.target === actModal) {
+          closeActivityDetailModal();
         }
       });
     }
