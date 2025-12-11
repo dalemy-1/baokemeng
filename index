@@ -375,7 +375,18 @@
             <button type="button" class="btn-secondary" id="batch-set-status-btn">批量修改状态</button>
             <button type="button" class="btn-danger" id="batch-delete-btn">批量删除</button>
             <input type="file" id="account-import-file" accept=".csv" />
-            <button type="button" class="btn-secondary" id="account-import-btn">批量导入邮箱</button>
+            <button type="button" class="btn-secondary" id="account-import-btn">从 CSV 导入邮箱</button>
+          </div>
+        </div>
+
+        <!-- 新增：从文本直接批量新增邮箱 -->
+        <div class="form-grid" style="margin-top:6px;">
+          <div class="form-group" style="grid-column:1/-1;">
+            <label>从文本批量新增邮箱（每行一个邮箱地址）</label>
+            <textarea id="account-import-text" placeholder="例如：&#10;aaa@example.com&#10;bbb@outlook.com"></textarea>
+          </div>
+          <div class="form-actions" style="justify-content:flex-end;margin-top:0;">
+            <button type="button" class="btn-secondary" id="account-import-text-btn">从文本批量新增邮箱</button>
           </div>
         </div>
 
@@ -639,7 +650,7 @@
         wins = [];
       }
 
-      // 兼容旧数据：没有 createdAt 时给一个较早的时间，避免排序出错
+      // 旧数据兼容：没有 createdAt 时补一个固定早期时间
       const fallbackDate = "2000-01-01T00:00:00.000Z";
       accounts.forEach(a => { if (!a.createdAt) a.createdAt = fallbackDate; });
       activities.forEach(a => { if (!a.createdAt) a.createdAt = fallbackDate; });
@@ -778,12 +789,12 @@
       const keyword = (accountSearchKeyword || "").toLowerCase();
       const statusFilter = accountStatusFilter || "";
 
-      // 先构造带 index 的列表，再按创建时间倒序排序
+      // 带 index 排序：按创建时间倒序（新的在上）
       const list = accounts.map((acc, index) => ({ acc, index }));
       list.sort((a, b) => {
         const da = a.acc.createdAt || "";
         const db = b.acc.createdAt || "";
-        return db.localeCompare(da); // 新的在上
+        return db.localeCompare(da);
       });
 
       list.forEach(item => {
@@ -992,7 +1003,6 @@
         resetAccountForm();
       });
 
-      // 搜索
       searchInput.addEventListener("input", e => {
         accountSearchKeyword = e.target.value || "";
         renderAccountsTable();
@@ -1091,11 +1101,53 @@
       });
     }
 
-    // 简单导入：取 CSV 第一列为邮箱
+    // 共同的批量导入逻辑
+    function bulkAddEmailsFromLines(lines, defaultNote) {
+      const nowIso = new Date().toISOString();
+      let imported = 0;
+      let skipped = 0;
+
+      lines.forEach(line => {
+        let email = line;
+        if (line.includes(",")) {
+          email = line.split(",")[0].trim();
+        }
+        email = email.trim();
+        if (!email || !email.includes("@")) {
+          skipped++;
+          return;
+        }
+        if (
+          accounts.some(
+            a => (a.email || "").toLowerCase() === email.toLowerCase()
+          )
+        ) {
+          skipped++;
+          return;
+        }
+        const id = generateAccountId();
+        accounts.push({
+          id,
+          email,
+          status: "可用",
+          label: "",
+          note: defaultNote || "",
+          createdAt: nowIso,
+        });
+        imported++;
+      });
+
+      return { imported, skipped };
+    }
+
+    // CSV + 文本导入
     function setupAccountImport() {
       const fileInput = document.getElementById("account-import-file");
       const importBtn = document.getElementById("account-import-btn");
+      const textArea = document.getElementById("account-import-text");
+      const textBtn = document.getElementById("account-import-text-btn");
 
+      // CSV 导入
       importBtn.addEventListener("click", () => {
         const file = fileInput.files && fileInput.files[0];
         if (!file) {
@@ -1118,48 +1170,51 @@
             return;
           }
 
-          let imported = 0;
-          let skipped = 0;
-          const nowIso = new Date().toISOString();
-
-          lines.forEach(line => {
-            let email = line;
-            if (line.includes(",")) {
-              email = line.split(",")[0].trim();
-            }
-            if (!email || !email.includes("@")) {
-              skipped++;
-              return;
-            }
-            if (
-              accounts.some(
-                a => (a.email || "").toLowerCase() === email.toLowerCase()
-              )
-            ) {
-              skipped++;
-              return;
-            }
-            const id = generateAccountId();
-            accounts.push({
-              id,
-              email,
-              status: "可用",
-              label: "",
-              note: "导入创建",
-              createdAt: nowIso,
-            });
-            imported++;
-          });
+          const { imported, skipped } = bulkAddEmailsFromLines(
+            lines,
+            "CSV 导入创建"
+          );
 
           saveData();
           renderAccountsTable();
           renderActivitiesTable();
           renderStats();
           alert(
-            `导入完成：成功导入 ${imported} 条；跳过 ${skipped} 条（格式错误或邮箱重复）。`
+            `CSV 导入完成：成功导入 ${imported} 条；跳过 ${skipped} 条（格式错误或邮箱重复）。`
           );
         };
         reader.readAsText(file, "utf-8");
+      });
+
+      // 文本导入
+      textBtn.addEventListener("click", () => {
+        const text = textArea.value.trim();
+        if (!text) {
+          alert("请先在文本框中粘贴邮箱列表（每行一个邮箱）。");
+          return;
+        }
+        const lines = text
+          .split(/\r?\n/)
+          .map(l => l.trim())
+          .filter(l => l.length > 0);
+        if (!lines.length) {
+          alert("邮箱列表为空。");
+          return;
+        }
+
+        const { imported, skipped } = bulkAddEmailsFromLines(
+          lines,
+          "文本导入创建"
+        );
+
+        saveData();
+        renderAccountsTable();
+        renderActivitiesTable();
+        renderStats();
+        textArea.value = "";
+        alert(
+          `文本导入完成：成功导入 ${imported} 条；跳过 ${skipped} 条（格式错误或邮箱重复）。`
+        );
       });
     }
 
@@ -1595,7 +1650,6 @@
       accContainer.innerHTML = "";
       actContainer.innerHTML = "";
 
-      // 账号维度
       if (!accounts.length) {
         accContainer.innerHTML = '<div class="muted">还没有账号数据。</div>';
       } else {
@@ -1645,7 +1699,6 @@
         });
       }
 
-      // 活动维度
       if (!activities.length) {
         actContainer.innerHTML = '<div class="muted">还没有活动数据。</div>';
       } else {
