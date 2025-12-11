@@ -246,10 +246,16 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 8px;
     }
-    .modal-header h3 {
-      margin: 0;
-      font-size: 14px;
+    .modal-header-actions {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .modal-header-actions .btn-secondary {
+      padding: 4px 8px;
+      font-size: 11px;
     }
     .modal-close-btn {
       border: none;
@@ -623,7 +629,12 @@
     <div class="modal">
       <div class="modal-header">
         <h3 id="activity-detail-title">活动详情</h3>
-        <button class="modal-close-btn" id="activity-detail-close-btn">×</button>
+        <div class="modal-header-actions">
+          <button type="button" class="btn-secondary" id="activity-detail-export-btn">
+            导出本活动中奖 CSV
+          </button>
+          <button class="modal-close-btn" id="activity-detail-close-btn">×</button>
+        </div>
       </div>
       <div class="modal-body" id="activity-detail-body">
         <!-- 动态填充 -->
@@ -646,6 +657,7 @@
     let accountSearchKeyword = "";
     let accountStatusFilter = "";
     let activitySearchKeyword = "";
+    let currentActivityDetailId = null; // 当前活动详情弹窗对应的活动ID
 
     // ========= localStorage =========
     function loadData() {
@@ -1400,6 +1412,7 @@
       if (!act) {
         titleEl.textContent = "活动详情";
         bodyEl.textContent = "活动不存在。";
+        currentActivityDetailId = null;
         modal.classList.add("active");
         return;
       }
@@ -1418,6 +1431,7 @@
         pCount > 0 ? ((wCount / pCount) * 100).toFixed(1) + "%" : "-";
 
       titleEl.textContent = `活动详情：${act.id} - ${act.name}`;
+      currentActivityDetailId = activityId;
 
       let html = `
         <div style="margin-bottom:6px;">
@@ -1470,6 +1484,7 @@
     function closeActivityDetailModal() {
       const modal = document.getElementById("activity-detail-modal");
       modal.classList.remove("active");
+      currentActivityDetailId = null;
     }
 
     function handleActivityRowAction(e) {
@@ -1897,6 +1912,73 @@
       }
     }
 
+    // ========= 导出当前活动中奖账号为 CSV =========
+    function exportActivityWinnersCSV(activityId) {
+      const act = activities.find(a => a.id === activityId);
+      if (!act) {
+        alert("活动不存在，无法导出。");
+        return;
+      }
+      const winsOfAct = wins.filter(w => w.activityId === activityId);
+      if (!winsOfAct.length) {
+        alert("该活动尚无中奖记录，无法导出。");
+        return;
+      }
+
+      const rows = [];
+      // 表头
+      rows.push([
+        "活动ID",
+        "活动名称",
+        "账号ID",
+        "邮箱",
+        "中奖日期",
+        "奖项",
+        "备注",
+      ]);
+
+      winsOfAct.forEach(w => {
+        const acc = accounts.find(a => a.id === w.accountId);
+        const email = acc ? acc.email : "";
+        const prize =
+          (w.prizeLevel || "") + (w.prizeName ? " " + w.prizeName : "");
+        rows.push([
+          act.id || "",
+          act.name || "",
+          w.accountId || "",
+          email || "",
+          w.eventDate || "",
+          prize.trim(),
+          w.note || "",
+        ]);
+      });
+
+      const csvLines = rows.map(row =>
+        row
+          .map(field => {
+            const v = field == null ? "" : String(field);
+            // 简单处理逗号和引号
+            if (/[",\n]/.test(v)) {
+              return '"' + v.replace(/"/g, '""') + '"';
+            }
+            return v;
+          })
+          .join(",")
+      );
+      const csvContent = "\uFEFF" + csvLines.join("\r\n"); // 加 BOM
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const safeName = (act.name || "").replace(/[\\\/:*?"<>|]/g, "_");
+      a.href = url;
+      a.download = `${act.id}_${safeName || "winners"}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
     // ========= 数据备份 =========
     function updateExportText() {
       const obj = {
@@ -1986,6 +2068,8 @@
       // 活动详情弹窗
       const actModal = document.getElementById("activity-detail-modal");
       const actCloseBtn = document.getElementById("activity-detail-close-btn");
+      const actExportBtn = document.getElementById("activity-detail-export-btn");
+
       actCloseBtn.addEventListener("click", () => {
         closeActivityDetailModal();
       });
@@ -1993,6 +2077,13 @@
         if (e.target === actModal) {
           closeActivityDetailModal();
         }
+      });
+      actExportBtn.addEventListener("click", () => {
+        if (!currentActivityDetailId) {
+          alert("当前没有可导出的活动。");
+          return;
+        }
+        exportActivityWinnersCSV(currentActivityDetailId);
       });
     }
 
