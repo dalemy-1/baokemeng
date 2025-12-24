@@ -154,6 +154,8 @@
       background: #e5e7eb;
       color: #374151;
       white-space: nowrap;
+      margin-right: 4px;
+      margin-bottom: 2px;
     }
     .tag-success { background: #dcfce7; color: #166534; }
     .tag-warning { background: #fef9c3; color: #854d0e; }
@@ -341,10 +343,14 @@
                 <option value="黑名单">黑名单</option>
               </select>
             </div>
+
+            <!-- ✅ 分组标签：多标签输入 + 历史标签建议 -->
             <div class="form-group">
-              <label>标签 / 分组</label>
-              <input type="text" id="account-label" placeholder="例如：主库 / 备用 / JP / US" />
+              <label>标签 / 分组（可多个，用逗号分隔）</label>
+              <input type="text" id="account-tags" list="tag-datalist" placeholder="例如：主库, JP, US" />
+              <datalist id="tag-datalist"></datalist>
             </div>
+
             <div class="form-group" style="grid-column:1/-1;">
               <label>备注</label>
               <textarea id="account-note" placeholder="这里不写详细地址，只写你需要的备注即可。"></textarea>
@@ -367,6 +373,12 @@
               <option value="封禁">只看封禁</option>
               <option value="黑名单">只看黑名单</option>
             </select>
+
+            <!-- ✅ 标签筛选 -->
+            <select id="account-tag-filter" class="small-input">
+              <option value="">全部标签</option>
+            </select>
+
             <select id="batch-status-select" class="small-input">
               <option value="">批量状态</option>
               <option value="可用">可用</option>
@@ -683,8 +695,71 @@
 
     let accountSearchKeyword = "";
     let accountStatusFilter = "";
+    let accountTagFilter = ""; // ✅ 标签筛选
     let activitySearchKeyword = "";
     let currentActivityDetailId = null;
+
+    // ======== 标签分组（多标签）========
+    function parseTags(str) {
+      if (!str) return [];
+      const arr = String(str)
+        .split(/[,\s，\/|]+/g)     // 支持：逗号/中文逗号/空格/斜杠/竖线
+        .map(s => s.trim())
+        .filter(Boolean);
+      return Array.from(new Set(arr)); // 去重
+    }
+
+    function tagsToText(tags) {
+      return (Array.isArray(tags) ? tags : []).join(", ");
+    }
+
+    // 兼容旧数据：把 label 自动转成 tags
+    function ensureAccountTags(acc) {
+      if (!acc) return;
+      if (!Array.isArray(acc.tags)) {
+        if (acc.label && typeof acc.label === "string") acc.tags = parseTags(acc.label);
+        else acc.tags = [];
+      }
+    }
+
+    // 统计所有已存在标签（来自所有账号）
+    function getAllTags() {
+      const set = new Set();
+      accounts.forEach(a => {
+        ensureAccountTags(a);
+        (a.tags || []).forEach(t => set.add(t));
+      });
+      return Array.from(set).sort((a, b) => a.localeCompare(b, "zh"));
+    }
+
+    // 刷新：标签建议(datalist) + 标签筛选(select)
+    function refreshTagUI() {
+      const all = getAllTags();
+
+      const dl = document.getElementById("tag-datalist");
+      if (dl) {
+        dl.innerHTML = "";
+        all.forEach(t => {
+          const opt = document.createElement("option");
+          opt.value = t;
+          dl.appendChild(opt);
+        });
+      }
+
+      const sel = document.getElementById("account-tag-filter");
+      if (sel) {
+        const cur = sel.value || "";
+        sel.innerHTML = '<option value="">全部标签</option>';
+        all.forEach(t => {
+          const opt = document.createElement("option");
+          opt.value = t;
+          opt.textContent = t;
+          sel.appendChild(opt);
+        });
+        if (cur && all.includes(cur)) sel.value = cur;
+        else sel.value = "";
+      }
+    }
 
     // ========= 本地 localStorage =========
     function loadDataLocal() {
@@ -701,9 +776,15 @@
         activities = [];
         wins = [];
       }
+
+      // ✅ 补齐 tags（兼容旧数据）
+      accounts.forEach(ensureAccountTags);
+
       const fallbackDate = "2000-01-01T00:00:00.000Z";
       accounts.forEach(a => { if (!a.createdAt) a.createdAt = fallbackDate; });
       activities.forEach(a => { if (!a.createdAt) a.createdAt = fallbackDate; });
+
+      refreshTagUI();
     }
 
     function saveDataLocal() {
@@ -711,6 +792,7 @@
       localStorage.setItem(STORAGE_KEYS.activities, JSON.stringify(activities));
       localStorage.setItem(STORAGE_KEYS.wins, JSON.stringify(wins));
       refreshCounts();
+      refreshTagUI();
     }
 
     // ========= 远程 Supabase 读写（失败自动降级） =========
@@ -738,9 +820,15 @@
           accounts = data.data.accounts || [];
           activities = data.data.activities || [];
           wins = data.data.wins || [];
+
+          // ✅ 补齐 tags（兼容旧数据）
+          accounts.forEach(ensureAccountTags);
+
           const fallbackDate = "2000-01-01T00:00:00.000Z";
           accounts.forEach(a => { if (!a.createdAt) a.createdAt = fallbackDate; });
           activities.forEach(a => { if (!a.createdAt) a.createdAt = fallbackDate; });
+
+          refreshTagUI();
           saveDataLocal();
           return true;
         }
@@ -862,18 +950,19 @@
       document.getElementById("account-id").value = "";
       document.getElementById("account-email").value = "";
       document.getElementById("account-status").value = "可用";
-      document.getElementById("account-label").value = "";
+      document.getElementById("account-tags").value = "";
       document.getElementById("account-note").value = "";
       updateAccountCurrentEdit("新建账号");
     }
 
     function loadAccountToForm(idx) {
       const acc = accounts[idx];
+      ensureAccountTags(acc);
       document.getElementById("account-edit-index").value = idx;
       document.getElementById("account-id").value = acc.id || "";
       document.getElementById("account-email").value = acc.email || "";
       document.getElementById("account-status").value = acc.status || "可用";
-      document.getElementById("account-label").value = acc.label || "";
+      document.getElementById("account-tags").value = tagsToText(acc.tags || []);
       document.getElementById("account-note").value = acc.note || "";
       updateAccountCurrentEdit(`编辑账号 ${acc.id}`);
     }
@@ -893,6 +982,7 @@
 
       const keyword = (accountSearchKeyword || "").toLowerCase();
       const statusFilter = accountStatusFilter || "";
+      const tagFilter = accountTagFilter || "";
 
       const list = accounts.map((acc, index) => ({ acc, index }));
       list.sort((a, b) => (b.acc.createdAt || "").localeCompare(a.acc.createdAt || ""));
@@ -901,10 +991,17 @@
         const acc = item.acc;
         const index = item.index;
 
+        ensureAccountTags(acc);
+
         if (statusFilter && acc.status !== statusFilter) return;
 
+        if (tagFilter) {
+          if (!(acc.tags || []).includes(tagFilter)) return;
+        }
+
         if (keyword) {
-          const text = (acc.id || "") + " " + (acc.email || "") + " " + (acc.label || "") + " " + (acc.note || "");
+          const tagsText = (acc.tags || []).join(" ");
+          const text = (acc.id || "") + " " + (acc.email || "") + " " + tagsText + " " + (acc.note || "");
           if (!text.toLowerCase().includes(keyword)) return;
         }
 
@@ -915,13 +1012,17 @@
         const stat = winStats[acc.id] || { total: 0, lastEvent: "", lastDate: "" };
         const lastInfo = stat.lastEvent ? `${stat.lastEvent}（${stat.lastDate || "日期未填"}）` : "-";
 
+        const tagsHtml = (acc.tags || []).length
+          ? (acc.tags || []).map(t => `<span class="tag">${t}</span>`).join(" ")
+          : "";
+
         const tr = document.createElement("tr");
         tr.innerHTML = `
           <td><input type="checkbox" class="account-select" data-index="${index}" /></td>
           <td>${acc.id}</td>
           <td>${acc.email}</td>
           <td><span class="tag ${statusClass}">${acc.status || ""}</span></td>
-          <td>${acc.label || ""}</td>
+          <td>${tagsHtml}</td>
           <td>${stat.total}</td>
           <td>${lastInfo}</td>
           <td>${formatDateTime(acc.createdAt)}</td>
@@ -938,6 +1039,7 @@
 
       tbody.querySelectorAll("button").forEach(btn => btn.addEventListener("click", handleAccountRowAction));
       refreshCounts();
+      refreshTagUI();
     }
 
     function openAccountDetailModal(accountId) {
@@ -953,6 +1055,8 @@
         return;
       }
 
+      ensureAccountTags(acc);
+
       const accWins = wins.filter(w => w.accountId === acc.id)
         .sort((a, b) => (b.eventDate || b.createdAt || "").localeCompare(a.eventDate || a.createdAt || ""));
 
@@ -966,9 +1070,13 @@
 
       titleEl.textContent = `账号详情：${acc.id} - ${acc.email}`;
 
+      const tagsLine = (acc.tags || []).length
+        ? (acc.tags || []).map(t => `<span class="tag">${t}</span>`).join(" ")
+        : `<span class="muted">（无标签）</span>`;
+
       let html = `
         <div style="margin-bottom:6px;">
-          状态：${acc.status || ""} ｜ 标签：${acc.label || ""} ｜ 创建：${formatDateTime(acc.createdAt)}
+          状态：${acc.status || ""} ｜ 标签：${tagsLine} ｜ 创建：${formatDateTime(acc.createdAt)}
         </div>
         <div style="margin-bottom:8px;font-size:12px;color:#6b7280;">
           参加活动数：${participatedActivities.length} ｜ 总中奖次数：${accWins.length}
@@ -1076,7 +1184,8 @@
         const editIndex = document.getElementById("account-edit-index").value.trim();
         const email = document.getElementById("account-email").value.trim();
         const status = document.getElementById("account-status").value.trim();
-        const label = document.getElementById("account-label").value.trim();
+        const tagsInput = document.getElementById("account-tags").value.trim();
+        const tags = parseTags(tagsInput);
         const note = document.getElementById("account-note").value.trim();
 
         if (!email) return alert("邮箱不能为空。");
@@ -1086,13 +1195,24 @@
             if (!confirm("已存在相同邮箱的账号，仍然要新建一条吗？")) return;
           }
           const id = generateAccountId();
-          accounts.push({ id, email, status, label, note, createdAt: new Date().toISOString() });
+          accounts.push({
+            id,
+            email,
+            status,
+            tags,
+            // 可选：保留 label 以兼容旧展示（不影响 tags）
+            label: tags.join(" / "),
+            note,
+            createdAt: new Date().toISOString()
+          });
         } else {
           const idx = parseInt(editIndex, 10);
           if (!accounts[idx]) return;
+          ensureAccountTags(accounts[idx]);
           accounts[idx].email = email;
           accounts[idx].status = status;
-          accounts[idx].label = label;
+          accounts[idx].tags = tags;
+          accounts[idx].label = tags.join(" / ");
           accounts[idx].note = note;
           if (!accounts[idx].createdAt) accounts[idx].createdAt = new Date().toISOString();
         }
@@ -1106,6 +1226,12 @@
 
       document.getElementById("account-search").addEventListener("input", e => { accountSearchKeyword = e.target.value || ""; renderAccountsTable(); });
       document.getElementById("account-status-filter").addEventListener("change", e => { accountStatusFilter = e.target.value || ""; renderAccountsTable(); });
+
+      // ✅ 标签筛选
+      document.getElementById("account-tag-filter").addEventListener("change", e => {
+        accountTagFilter = e.target.value || "";
+        renderAccountsTable();
+      });
 
       setupAccountBatchActions();
       setupAccountImport();
@@ -1168,7 +1294,7 @@
         if (!email || !email.includes("@")) { skipped++; return; }
         if (accounts.some(a => (a.email || "").toLowerCase() === email.toLowerCase())) { skipped++; return; }
         const id = generateAccountId();
-        accounts.push({ id, email, status: "可用", label: "", note: defaultNote || "", createdAt: nowIso });
+        accounts.push({ id, email, status: "可用", tags: [], label: "", note: defaultNote || "", createdAt: nowIso });
         imported++;
       });
 
@@ -1584,6 +1710,7 @@
         });
 
         const list = accounts.map(acc => {
+          ensureAccountTags(acc);
           const s = statsMap.get(acc.id) || { total: 0, lastEvent: "", lastDate: "" };
           return { acc, total: s.total, lastEvent: s.lastEvent, lastDate: s.lastDate };
         }).sort((a, b) => b.total - a.total);
@@ -1593,11 +1720,17 @@
           let statusClass = "tag-warning";
           if (acc.status === "可用") statusClass = "tag-success";
           else if (acc.status === "封禁" || acc.status === "黑名单") statusClass = "tag-danger";
+
+          const tagsHtml = (acc.tags || []).length
+            ? (acc.tags || []).map(t => `<span class="tag">${t}</span>`).join(" ")
+            : `<span class="muted">（无标签）</span>`;
+
           const card = document.createElement("div");
           card.className = "stat-card";
           card.innerHTML = `
             <h3>${acc.id} - ${acc.email}</h3>
-            <div>状态：<span class="tag ${statusClass}">${acc.status || ""}</span> ｜ 标签：${acc.label || "-"}</div>
+            <div>状态：<span class="tag ${statusClass}">${acc.status || ""}</span></div>
+            <div style="margin-top:4px;">标签：${tagsHtml}</div>
             <div style="margin-top:4px;">总中奖次数：<strong>${total}</strong></div>
             <div style="margin-top:4px;">最近中奖：${lastEvent ? lastEvent + "（" + (lastDate || "日期未填") + "）" : "-"}</div>
           `;
@@ -1630,6 +1763,8 @@
           actContainer.appendChild(card);
         });
       }
+
+      refreshTagUI();
     }
 
     // ========= 导出活动中奖 CSV =========
@@ -1639,12 +1774,13 @@
       const winsOfAct = wins.filter(w => w.activityId === activityId);
       if (!winsOfAct.length) return alert("该活动尚无中奖记录，无法导出。");
 
-      const rows = [["活动ID","活动名称","账号ID","邮箱","中奖日期","奖项","备注"]];
+      const rows = [["活动ID","活动名称","账号ID","邮箱","中奖日期","奖项","备注","账号标签"]];
       winsOfAct.forEach(w => {
         const acc = accounts.find(a => a.id === w.accountId);
         const email = acc ? acc.email : "";
         const prize = (w.prizeLevel || "") + (w.prizeName ? " " + w.prizeName : "");
-        rows.push([act.id||"", act.name||"", w.accountId||"", email||"", w.eventDate||"", prize.trim(), w.note||""]);
+        const tagText = acc ? tagsToText((acc.tags || [])) : "";
+        rows.push([act.id||"", act.name||"", w.accountId||"", email||"", w.eventDate||"", prize.trim(), w.note||"", tagText]);
       });
 
       const csvLines = rows.map(row => row.map(field => {
@@ -1686,6 +1822,10 @@
           accounts = Array.isArray(obj.accounts) ? obj.accounts : [];
           activities = Array.isArray(obj.activities) ? obj.activities : [];
           wins = Array.isArray(obj.wins) ? obj.wins : [];
+
+          // ✅ 补齐 tags（兼容旧数据）
+          accounts.forEach(ensureAccountTags);
+
           saveData();
           renderAccountsTable(); renderActivitiesTable(); renderWinsTable(); renderStats();
           updateExportText();
@@ -1757,6 +1897,7 @@
               resetAccountForm();
               resetActivityForm();
               resetWinnerForm();
+              refreshTagUI();
             } catch (e) {
               console.error(e);
             }
@@ -1811,6 +1952,7 @@
       resetActivityForm();
       resetWinnerForm();
       refreshCounts();
+      refreshTagUI();
     }
 
     document.addEventListener("DOMContentLoaded", () => {
