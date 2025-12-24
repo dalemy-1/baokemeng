@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <title>账号库 · 活动 · 中奖统计系统（云端版）</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Supabase UMD 版本 -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+  <!-- 不直接写 <script src=...>，改为 JS 动态加载，支持双 CDN 兜底 -->
   <style>
     * { box-sizing: border-box; }
     body {
@@ -87,25 +87,15 @@
       gap: 8px;
       flex-wrap: wrap;
     }
-    .current-edit {
-      font-size: 12px;
-      color: #4b5563;
-    }
-    .current-edit span {
-      font-weight: 600;
-      color: #111827;
-    }
+    .current-edit { font-size: 12px; color: #4b5563; }
+    .current-edit span { font-weight: 600; color: #111827; }
 
     .form-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       gap: 8px 12px;
     }
-    .form-group {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
+    .form-group { display: flex; flex-direction: column; gap: 4px; }
     label { font-size: 12px; color: #4b5563; }
 
     input[type="text"],
@@ -141,18 +131,16 @@
     .btn-secondary { background: #e5e7eb; color: #111827; }
     .btn-danger { background: #dc2626; color: #f9fafb; }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 8px;
-      font-size: 12px;
-    }
+    /* 表格：桌面正常，手机可横向滑动 */
+    .table-wrap { width: 100%; overflow: auto; border-radius: 10px; border: 1px solid #e5e7eb; background: #fff; }
+    table { width: 100%; border-collapse: collapse; margin-top: 0; font-size: 12px; min-width: 980px; }
     thead { background: #f3f4f6; }
     th, td {
       padding: 6px 8px;
       border-bottom: 1px solid #e5e7eb;
       text-align: left;
       vertical-align: top;
+      white-space: nowrap;
     }
     th { font-weight: 600; color: #4b5563; }
     tr:last-child td { border-bottom: none; }
@@ -165,20 +153,14 @@
       border-radius: 999px;
       background: #e5e7eb;
       color: #374151;
+      white-space: nowrap;
     }
     .tag-success { background: #dcfce7; color: #166534; }
     .tag-warning { background: #fef9c3; color: #854d0e; }
     .tag-danger  { background: #fee2e2; color: #b91c1c; }
 
-    .table-actions {
-      display: flex;
-      gap: 4px;
-      flex-wrap: wrap;
-    }
-    .table-actions button {
-      padding: 2px 6px;
-      font-size: 11px;
-    }
+    .table-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+    .table-actions button { padding: 2px 6px; font-size: 11px; }
 
     .badge-number { font-variant-numeric: tabular-nums; }
 
@@ -194,12 +176,7 @@
       border-bottom: 1px dashed #e5e7eb;
       margin-top: 6px;
     }
-    .toolbar-right {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
+    .toolbar-right { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
     .small-input { max-width: 220px; }
 
     .stats-grid {
@@ -216,7 +193,6 @@
       font-size: 12px;
     }
     .stat-card h3 { margin: 0 0 4px; font-size: 13px; }
-
     .muted { color: #9ca3af; }
 
     /* 弹窗样式 */
@@ -229,9 +205,7 @@
       justify-content: center;
       z-index: 1000;
     }
-    .modal-backdrop.active {
-      display: flex;
-    }
+    .modal-backdrop.active { display: flex; }
     .modal {
       background: #ffffff;
       border-radius: 12px;
@@ -250,15 +224,8 @@
       align-items: center;
       gap: 8px;
     }
-    .modal-header-actions {
-      display: inline-flex;
-      gap: 6px;
-      align-items: center;
-    }
-    .modal-header-actions .btn-secondary {
-      padding: 4px 8px;
-      font-size: 11px;
-    }
+    .modal-header-actions { display: inline-flex; gap: 6px; align-items: center; }
+    .modal-header-actions .btn-secondary { padding: 4px 8px; font-size: 11px; }
     .modal-close-btn {
       border: none;
       background: transparent;
@@ -268,19 +235,17 @@
       line-height: 1;
       color: #6b7280;
     }
-    .modal-body {
-      padding: 10px 14px 12px;
-      overflow: auto;
-      font-size: 12px;
-    }
+    .modal-body { padding: 10px 14px 12px; overflow: auto; font-size: 12px; }
 
     @media (max-width: 640px) {
       header { padding: 12px 16px; }
       .card { padding: 12px 14px; }
-      th, td { padding: 4px 6px; }
+      .small-input { max-width: 100%; }
+      table { min-width: 980px; } /* 手机就靠横向滑动 */
     }
   </style>
 </head>
+
 <body>
   <!-- 密码锁遮罩 -->
   <div id="password-overlay" style="
@@ -291,95 +256,71 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 2000;
-  ">
+    z-index: 2000;">
     <div style="
       background:#1f2937;
       padding:20px 24px;
       border-radius:12px;
       width:90%;
       max-width:360px;
-      box-shadow:0 20px 40px rgba(0,0,0,.4);
-    ">
+      box-shadow:0 20px 40px rgba(0,0,0,.4);">
       <h2 style="margin:0 0 8px;font-size:18px;">宝可梦账号系统登录</h2>
       <p style="margin:0 0 12px;font-size:12px;color:#9ca3af;">
         请输入访问密码。浏览器会在本机记住登录状态。
       </p>
-      <input
-        id="password-input"
-        type="password"
-        placeholder="访问密码"
-        style="
-          width:100%;
-          padding:8px 10px;
-          border-radius:6px;
-          border:1px solid #4b5563;
-          background:#111827;
-          color:#f9fafb;
-          font-size:13px;
-          margin-bottom:8px;
-        "
-      />
+      <input id="password-input" type="password" placeholder="访问密码" style="
+        width:100%;
+        padding:8px 10px;
+        border-radius:6px;
+        border:1px solid #4b5563;
+        background:#111827;
+        color:#f9fafb;
+        font-size:13px;
+        margin-bottom:8px;" />
       <div id="password-error" style="min-height:18px;font-size:12px;color:#f97373;margin-bottom:8px;"></div>
-      <button
-        id="password-submit"
-        style="
-          width:100%;
-          padding:8px 10px;
-          border-radius:6px;
-          border:none;
-          background:#f97316;
-          color:#111827;
-          font-size:14px;
-          cursor:pointer;
-        "
-      >进入系统</button>
+      <button id="password-submit" style="
+        width:100%;
+        padding:8px 10px;
+        border-radius:6px;
+        border:none;
+        background:#f97316;
+        color:#111827;
+        font-size:14px;
+        cursor:pointer;">进入系统</button>
+      <div id="cloud-hint" style="margin-top:10px;font-size:12px;color:#9ca3af;line-height:1.4;"></div>
     </div>
   </div>
 
   <header>
     <h1>账号库 · 活动 · 中奖统计系统（云端版）</h1>
-    <p>账号池 + 每期活动参与统计 + 中奖录入，数据同步到 Supabase，同时保留本机缓存。</p>
+    <p>账号池 + 每期活动参与统计 + 中奖录入；优先同步到 Supabase，并保留本机缓存兜底。</p>
   </header>
 
   <div class="container">
     <div class="card">
       <div class="tab-buttons">
         <button class="tab-button active" data-tab="accounts">
-          账号库
-          <span class="badge badge-number" id="accounts-count">0</span>
+          账号库 <span class="badge badge-number" id="accounts-count">0</span>
         </button>
         <button class="tab-button" data-tab="activities">
-          活动管理
-          <span class="badge badge-number" id="activities-count">0</span>
+          活动管理 <span class="badge badge-number" id="activities-count">0</span>
         </button>
         <button class="tab-button" data-tab="winners">
-          中奖录入
-          <span class="badge badge-number" id="wins-count">0</span>
+          中奖录入 <span class="badge badge-number" id="wins-count">0</span>
         </button>
-        <button class="tab-button" data-tab="stats">
-          统计视图
-        </button>
-        <button class="tab-button" data-tab="backup">
-          数据备份
-        </button>
+        <button class="tab-button" data-tab="stats">统计视图</button>
+        <button class="tab-button" data-tab="backup">数据备份</button>
       </div>
 
       <!-- 账号库 -->
       <section id="tab-accounts" class="tab-content active">
         <h2>账号库</h2>
-        <p class="sub">
-          录入所有邮箱账号信息，只记录邮箱、状态、标签、备注。支持文本搜索、状态筛选、批量操作，并查看每个账号的中奖情况。
-        </p>
+        <p class="sub">录入邮箱账号信息，支持搜索、筛选、批量操作，并查看每个账号的中奖情况。</p>
 
         <form id="account-form">
           <div class="form-header-row">
-            <div class="current-edit" id="account-current-edit">
-              当前模式：<span>新建账号</span>
-            </div>
-            <div style="font-size:12px;color:#6b7280;">
-              小贴士：可以先从 Excel 导出一列邮箱，用 CSV UTF-8，再批量导入。
-            </div>
+            <div class="current-edit" id="account-current-edit">当前模式：<span>新建账号</span></div>
+            <div style="font-size:12px;color:#6b7280;">小贴士：可先从 Excel 导出一列邮箱，保存为 CSV UTF-8 再导入。</div>
           </div>
           <input type="hidden" id="account-edit-index" value="" />
           <div class="form-grid">
@@ -416,9 +357,7 @@
         </form>
 
         <div class="toolbar">
-          <div class="muted">
-            多选账号可批量修改状态或删除；删除账号会同时删除该账号的中奖记录和参与记录。
-          </div>
+          <div class="muted">多选账号可批量修改状态或删除；删除账号会同时删除该账号的中奖记录和参与记录。</div>
           <div class="toolbar-right">
             <input type="text" id="account-search" class="small-input" placeholder="搜索邮箱 / 标签 / 备注" />
             <select id="account-status-filter" class="small-input">
@@ -442,7 +381,6 @@
           </div>
         </div>
 
-        <!-- 从文本直接批量新增邮箱 -->
         <div class="form-grid" style="margin-top:6px;">
           <div class="form-group" style="grid-column:1/-1;">
             <label>从文本批量新增邮箱（每行一个邮箱地址）</label>
@@ -453,41 +391,35 @@
           </div>
         </div>
 
-        <table>
-          <thead>
-            <tr>
-              <th style="width:32px;">
-                <input type="checkbox" id="accounts-select-all" />
-              </th>
-              <th>ID</th>
-              <th>邮箱</th>
-              <th>状态</th>
-              <th>标签</th>
-              <th>总中奖次数</th>
-              <th>最近中奖</th>
-              <th>创建日期</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody id="accounts-tbody"></tbody>
-        </table>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:32px;"><input type="checkbox" id="accounts-select-all" /></th>
+                <th>ID</th>
+                <th>邮箱</th>
+                <th>状态</th>
+                <th>标签</th>
+                <th>总中奖次数</th>
+                <th>最近中奖</th>
+                <th>创建日期</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="accounts-tbody"></tbody>
+          </table>
+        </div>
       </section>
 
       <!-- 活动管理 -->
       <section id="tab-activities" class="tab-content">
         <h2>活动管理</h2>
-        <p class="sub">
-          每期开启一个活动，可一键选择当前所有「可用」账号参与。活动结束后，在“中奖录入”中选择活动录入中奖账号，系统自动统计参与数、中奖数和中奖比例。
-        </p>
+        <p class="sub">每期开启一个活动，可一键选择当前所有「可用」账号参与。活动结束后在“中奖录入”登记中奖账号，自动统计中奖率。</p>
 
         <form id="activity-form">
           <div class="form-header-row">
-            <div class="current-edit" id="activity-current-edit">
-              当前模式：<span>新建活动</span>
-            </div>
-            <div style="font-size:12px;color:#6b7280;">
-              参与账号可以随时重新选择「全部可用账号」，不会影响已录入的中奖记录。
-            </div>
+            <div class="current-edit" id="activity-current-edit">当前模式：<span>新建活动</span></div>
+            <div style="font-size:12px;color:#6b7280;">参与账号可随时重新选择，不影响已录入的中奖记录。</div>
           </div>
           <input type="hidden" id="activity-edit-index" value="" />
           <div class="form-grid">
@@ -528,12 +460,8 @@
             </div>
           </div>
           <div class="form-actions">
-            <button type="button" class="btn-secondary" id="activity-select-all-available-btn">
-              选择全部「可用」账号参与
-            </button>
-            <button type="button" class="btn-secondary" id="activity-clear-participants-btn">
-              清空参与账号
-            </button>
+            <button type="button" class="btn-secondary" id="activity-select-all-available-btn">选择全部「可用」账号参与</button>
+            <button type="button" class="btn-secondary" id="activity-clear-participants-btn">清空参与账号</button>
             <span style="flex:1;"></span>
             <button type="button" class="btn-secondary" id="activity-reset-btn">新建活动</button>
             <button type="submit" class="btn-primary">保存活动</button>
@@ -541,45 +469,41 @@
         </form>
 
         <div class="toolbar">
-          <div class="muted">
-            活动删除后，该活动下所有中奖记录会一并删除。
-          </div>
+          <div class="muted">活动删除后，该活动下所有中奖记录会一并删除。</div>
           <div class="toolbar-right">
             <input type="text" id="activity-search" class="small-input" placeholder="搜索活动名称 / 备注" />
           </div>
         </div>
 
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>活动名称</th>
-              <th>日期</th>
-              <th>状态</th>
-              <th>参与账号数</th>
-              <th>中奖数量</th>
-              <th>中奖比例</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody id="activities-tbody"></tbody>
-        </table>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>活动名称</th>
+                <th>日期</th>
+                <th>状态</th>
+                <th>参与账号数</th>
+                <th>中奖数量</th>
+                <th>中奖比例</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="activities-tbody"></tbody>
+          </table>
+        </div>
       </section>
 
       <!-- 中奖录入 -->
       <section id="tab-winners" class="tab-content">
         <h2>中奖录入</h2>
-        <p class="sub">
-          选择一期活动，只录入中奖账号（ID 或邮箱）。系统按活动和账号自动建立中奖记录，并更新各类统计。
-        </p>
+        <p class="sub">选择一期活动，只录入中奖账号（ID 或邮箱）。系统自动统计参与数、中奖数和中奖比例。</p>
 
         <form id="winner-form">
           <div class="form-grid">
             <div class="form-group">
               <label>选择活动</label>
-              <select id="win-activity-id" required>
-                <option value="">请选择活动</option>
-              </select>
+              <select id="win-activity-id" required><option value="">请选择活动</option></select>
             </div>
             <div class="form-group">
               <label>活动日期（可覆盖活动默认日期）</label>
@@ -610,32 +534,30 @@
         </form>
 
         <div class="toolbar">
-          <div class="muted">
-            下表展示最近的 50 条中奖记录，方便快速回看。
-          </div>
+          <div class="muted">下表展示最近的 50 条中奖记录，方便快速回看。</div>
         </div>
 
-        <table>
-          <thead>
-            <tr>
-              <th>中奖ID</th>
-              <th>账号</th>
-              <th>活动</th>
-              <th>日期</th>
-              <th>奖项</th>
-              <th>备注</th>
-            </tr>
-          </thead>
-          <tbody id="wins-tbody"></tbody>
-        </table>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>中奖ID</th>
+                <th>账号</th>
+                <th>活动</th>
+                <th>日期</th>
+                <th>奖项</th>
+                <th>备注</th>
+              </tr>
+            </thead>
+            <tbody id="wins-tbody"></tbody>
+          </table>
+        </div>
       </section>
 
       <!-- 统计视图 -->
       <section id="tab-stats" class="tab-content">
         <h2>统计视图</h2>
-        <p class="sub">
-          上半部分按账号统计中奖情况，下半部分按活动统计参与数和中奖率。
-        </p>
+        <p class="sub">上半部分按账号统计中奖情况，下半部分按活动统计参与数和中奖率。</p>
 
         <h3 style="font-size:14px;margin:8px 0 4px;">账号维度</h3>
         <div class="stats-grid" id="stats-accounts"></div>
@@ -675,9 +597,7 @@
         <h3 id="account-detail-title">账号详情</h3>
         <button class="modal-close-btn" id="account-detail-close-btn">×</button>
       </div>
-      <div class="modal-body" id="account-detail-body">
-        <!-- 动态填充 -->
-      </div>
+      <div class="modal-body" id="account-detail-body"></div>
     </div>
   </div>
 
@@ -687,33 +607,73 @@
       <div class="modal-header">
         <h3 id="activity-detail-title">活动详情</h3>
         <div class="modal-header-actions">
-          <button type="button" class="btn-secondary" id="activity-detail-export-btn">
-            导出本活动中奖 CSV
-          </button>
+          <button type="button" class="btn-secondary" id="activity-detail-export-btn">导出本活动中奖 CSV</button>
           <button class="modal-close-btn" id="activity-detail-close-btn">×</button>
         </div>
       </div>
-      <div class="modal-body" id="activity-detail-body">
-        <!-- 动态填充 -->
-      </div>
+      <div class="modal-body" id="activity-detail-body"></div>
     </div>
   </div>
 
   <script>
-    // ========= Supabase 配置（根据你提供的信息） =========
+    // ========= Supabase 配置 =========
     const SUPABASE_URL = "https://nuwqhopuszsbystlioku.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51d3Fob3B1c3pzYnlzdGxpb2t1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU0MjQ0ODIsImV4cCI6MjA4MTAwMDQ4Mn0.WzW8gnd_-CmGLRsG85ETH9PxRNT12xF6tuQiWArGo-4";
-    const DATASET_ID = "main-dataset"; // 固定一行，存整个系统数据
+    const DATASET_ID = "main-dataset"; // 固定一行存整套数据
 
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // 注意：不要用 const supabase = ...（会和 window.supabase 冲突/重复声明）
+    let sbClient = null;
+    let cloudEnabled = true; // 云端是否可用（SDK/CDN/网络/权限/索引问题都会自动降级）
 
-    // 是否成功从远程加载过数据
-    let remoteLoadedOnce = false;
+    function setCloudHint(msg) {
+      const el = document.getElementById("cloud-hint");
+      if (el) el.textContent = msg || "";
+    }
 
-    // ========= 基础数据结构 =========
-    let accounts = [];   // {id, email, status, label, note, createdAt}
-    let activities = []; // {id, name, date, status, prizeName, prizeLevel, note, participants: [accountId], createdAt}
-    let wins = [];       // {id, accountId, activityId, eventName, eventDate, prizeName, prizeLevel, note, createdAt}
+    async function loadSupabaseSdk() {
+      // 若已存在（可能被浏览器缓存或你之前加载过），直接通过
+      if (window.supabase && window.supabase.createClient) return true;
+
+      const urls = [
+        "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js",
+        "https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js"
+      ];
+
+      function loadOne(src) {
+        return new Promise((resolve, reject) => {
+          const s = document.createElement("script");
+          s.src = src;
+          s.async = true;
+          s.onload = () => resolve(true);
+          s.onerror = () => reject(new Error("load failed: " + src));
+          document.head.appendChild(s);
+        });
+      }
+
+      for (const u of urls) {
+        try {
+          await loadOne(u);
+          if (window.supabase && window.supabase.createClient) return true;
+        } catch (e) {
+          // try next
+        }
+      }
+      return false;
+    }
+
+    function getSb() {
+      if (sbClient) return sbClient;
+      if (!window.supabase || !window.supabase.createClient) {
+        throw new Error("Supabase SDK 未加载（CDN 失败/被拦截）");
+      }
+      sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      return sbClient;
+    }
+
+    // ========= 数据结构 =========
+    let accounts = [];
+    let activities = [];
+    let wins = [];
 
     const STORAGE_KEYS = {
       accounts: "acc_act_accounts",
@@ -724,9 +684,9 @@
     let accountSearchKeyword = "";
     let accountStatusFilter = "";
     let activitySearchKeyword = "";
-    let currentActivityDetailId = null; // 当前活动详情弹窗对应的活动ID
+    let currentActivityDetailId = null;
 
-    // ========= 本地 localStorage 读写 =========
+    // ========= 本地 localStorage =========
     function loadDataLocal() {
       try {
         const a = localStorage.getItem(STORAGE_KEYS.accounts);
@@ -741,7 +701,6 @@
         activities = [];
         wins = [];
       }
-
       const fallbackDate = "2000-01-01T00:00:00.000Z";
       accounts.forEach(a => { if (!a.createdAt) a.createdAt = fallbackDate; });
       activities.forEach(a => { if (!a.createdAt) a.createdAt = fallbackDate; });
@@ -754,19 +713,23 @@
       refreshCounts();
     }
 
-    // ========= 远程 Supabase 读写 =========
+    // ========= 远程 Supabase 读写（失败自动降级） =========
     async function loadDataRemote() {
+      if (!cloudEnabled) return false;
       try {
-        const { data, error } = await supabase
+        const sb = getSb();
+        const { data, error } = await sb
           .from("dataset")
           .select("data")
           .eq("id", DATASET_ID)
           .single();
 
         if (error) {
-          // PGRST116 表示未找到记录
+          // PGRST116: not found
           if (error.code !== "PGRST116") {
-            console.error("远程加载数据失败", error);
+            console.warn("远程加载失败，降级本地模式：", error);
+            cloudEnabled = false;
+            setCloudHint("提示：云端暂不可用（加载失败），系统将使用本机缓存。");
           }
           return false;
         }
@@ -775,47 +738,46 @@
           accounts = data.data.accounts || [];
           activities = data.data.activities || [];
           wins = data.data.wins || [];
-          remoteLoadedOnce = true;
-
           const fallbackDate = "2000-01-01T00:00:00.000Z";
           accounts.forEach(a => { if (!a.createdAt) a.createdAt = fallbackDate; });
           activities.forEach(a => { if (!a.createdAt) a.createdAt = fallbackDate; });
-
-          // 同步一份到本地
           saveDataLocal();
           return true;
         }
         return false;
       } catch (e) {
-        console.error("远程加载异常", e);
+        console.warn("远程加载异常，降级本地模式：", e);
+        cloudEnabled = false;
+        setCloudHint("提示：云端暂不可用（SDK/网络问题），系统将使用本机缓存。");
         return false;
       }
     }
 
     async function saveDataRemote() {
+      if (!cloudEnabled) return;
       try {
-        const payload = {
-          accounts,
-          activities,
-          wins,
-          updatedAt: new Date().toISOString(),
-        };
-        const { error } = await supabase
-          .from("dataset")
-          .upsert({ id: DATASET_ID, data: payload });
+        const sb = getSb();
+        const payload = { accounts, activities, wins, updatedAt: new Date().toISOString() };
+
+        // 注意：如果你 Supabase 里仍在报 500 index row too large，
+        // 说明 dataset 表上还有对 data/jsonb 的索引（尤其 GIN/BTREE），必须删除，只保留 id 主键索引。
+        const { error } = await sb.from("dataset").upsert({ id: DATASET_ID, data: payload });
 
         if (error) {
-          console.error("远程保存失败", error);
+          console.warn("远程保存失败，降级本地模式：", error);
+          cloudEnabled = false;
+          setCloudHint("提示：云端保存失败（可能是索引过大/权限问题），系统将使用本机缓存。");
         }
       } catch (e) {
-        console.error("远程保存异常", e);
+        console.warn("远程保存异常，降级本地模式：", e);
+        cloudEnabled = false;
+        setCloudHint("提示：云端保存异常（SDK/网络问题），系统将使用本机缓存。");
       }
     }
 
-    // 对外统一：保存 = 本地 + 云端
     function saveData() {
       saveDataLocal();
-      // 异步远程同步
+      // 异步云端同步
       saveDataRemote();
     }
 
@@ -869,16 +831,13 @@
         const hh = String(d.getHours()).padStart(2, "0");
         const mm = String(d.getMinutes()).padStart(2, "0");
         return `${y}-${m}-${day} ${hh}:${mm}`;
-      } catch {
-        return iso;
-      }
+      } catch { return iso; }
     }
 
-    // ========= Tab =========
+    // ========= Tabs =========
     function setupTabs() {
       const buttons = document.querySelectorAll(".tab-button");
       const contents = document.querySelectorAll(".tab-content");
-
       buttons.forEach(btn => {
         btn.addEventListener("click", () => {
           const tab = btn.getAttribute("data-tab");
@@ -886,12 +845,8 @@
           contents.forEach(c => c.classList.remove("active"));
           btn.classList.add("active");
           document.getElementById("tab-" + tab).classList.add("active");
-
-          if (tab === "stats") {
-            renderStats();
-          } else if (tab === "backup") {
-            updateExportText();
-          }
+          if (tab === "stats") renderStats();
+          if (tab === "backup") updateExportText();
         });
       });
     }
@@ -929,27 +884,18 @@
 
       const winStats = {};
       wins.forEach(w => {
-        if (!winStats[w.accountId]) {
-          winStats[w.accountId] = { total: 0, lastEvent: "", lastDate: "" };
-        }
+        if (!winStats[w.accountId]) winStats[w.accountId] = { total: 0, lastEvent: "", lastDate: "" };
         const s = winStats[w.accountId];
         s.total += 1;
         const d = w.eventDate || w.createdAt || "";
-        if (!s.lastDate || d > s.lastDate) {
-          s.lastDate = d;
-          s.lastEvent = w.eventName || "";
-        }
+        if (!s.lastDate || d > s.lastDate) { s.lastDate = d; s.lastEvent = w.eventName || ""; }
       });
 
       const keyword = (accountSearchKeyword || "").toLowerCase();
       const statusFilter = accountStatusFilter || "";
 
       const list = accounts.map((acc, index) => ({ acc, index }));
-      list.sort((a, b) => {
-        const da = a.acc.createdAt || "";
-        const db = b.acc.createdAt || "";
-        return db.localeCompare(da);
-      });
+      list.sort((a, b) => (b.acc.createdAt || "").localeCompare(a.acc.createdAt || ""));
 
       list.forEach(item => {
         const acc = item.acc;
@@ -958,29 +904,18 @@
         if (statusFilter && acc.status !== statusFilter) return;
 
         if (keyword) {
-          const text =
-            (acc.id || "") +
-            " " +
-            (acc.email || "") +
-            " " +
-            (acc.label || "") +
-            " " +
-            (acc.note || "");
+          const text = (acc.id || "") + " " + (acc.email || "") + " " + (acc.label || "") + " " + (acc.note || "");
           if (!text.toLowerCase().includes(keyword)) return;
         }
 
-        const tr = document.createElement("tr");
-
         let statusClass = "tag-warning";
         if (acc.status === "可用") statusClass = "tag-success";
-        else if (acc.status === "封禁" || acc.status === "黑名单")
-          statusClass = "tag-danger";
+        else if (acc.status === "封禁" || acc.status === "黑名单") statusClass = "tag-danger";
 
         const stat = winStats[acc.id] || { total: 0, lastEvent: "", lastDate: "" };
-        const lastInfo = stat.lastEvent
-          ? `${stat.lastEvent}（${stat.lastDate || "日期未填"}）`
-          : "-";
+        const lastInfo = stat.lastEvent ? `${stat.lastEvent}（${stat.lastDate || "日期未填"}）` : "-";
 
+        const tr = document.createElement("tr");
         tr.innerHTML = `
           <td><input type="checkbox" class="account-select" data-index="${index}" /></td>
           <td>${acc.id}</td>
@@ -998,14 +933,10 @@
             </div>
           </td>
         `;
-
         tbody.appendChild(tr);
       });
 
-      tbody.querySelectorAll("button").forEach(btn => {
-        btn.addEventListener("click", handleAccountRowAction);
-      });
-
+      tbody.querySelectorAll("button").forEach(btn => btn.addEventListener("click", handleAccountRowAction));
       refreshCounts();
     }
 
@@ -1022,23 +953,14 @@
         return;
       }
 
-      const accWins = wins
-        .filter(w => w.accountId === acc.id)
-        .sort((a, b) =>
-          (b.eventDate || b.createdAt || "").localeCompare(
-            a.eventDate || a.createdAt || ""
-          )
-        );
+      const accWins = wins.filter(w => w.accountId === acc.id)
+        .sort((a, b) => (b.eventDate || b.createdAt || "").localeCompare(a.eventDate || a.createdAt || ""));
 
-      const participatedActivities = activities.filter(act =>
-        (act.participants || []).includes(acc.id)
-      );
+      const participatedActivities = activities.filter(act => (act.participants || []).includes(acc.id));
 
       const winByActivity = new Map();
       accWins.forEach(w => {
-        if (!winByActivity.has(w.activityId)) {
-          winByActivity.set(w.activityId, []);
-        }
+        if (!winByActivity.has(w.activityId)) winByActivity.set(w.activityId, []);
         winByActivity.get(w.activityId).push(w);
       });
 
@@ -1058,14 +980,11 @@
         html += `<div class="muted" style="margin-bottom:8px;">尚未记录此账号参与任何活动。</div>`;
       } else {
         html += `
-          <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px;">
+          <div class="table-wrap" style="border:none;">
+          <table style="min-width:720px;">
             <thead>
               <tr>
-                <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">活动ID</th>
-                <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">活动名称</th>
-                <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">日期</th>
-                <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">是否中奖</th>
-                <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">中奖次数</th>
+                <th>活动ID</th><th>活动名称</th><th>日期</th><th>是否中奖</th><th>中奖次数</th>
               </tr>
             </thead>
             <tbody>
@@ -1075,55 +994,52 @@
           const winCount = winsArr.length;
           html += `
             <tr>
-              <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${act.id}</td>
-              <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${act.name}</td>
-              <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${act.date || "-"}</td>
-              <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${winCount > 0 ? "是" : "否"}</td>
-              <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${winCount}</td>
+              <td>${act.id}</td>
+              <td>${act.name}</td>
+              <td>${act.date || "-"}</td>
+              <td>${winCount > 0 ? "是" : "否"}</td>
+              <td>${winCount}</td>
             </tr>
           `;
         });
-        html += "</tbody></table>";
+        html += `</tbody></table></div>`;
       }
 
-      html += `<h4 style="margin:4px 0;font-size:13px;">中奖记录明细</h4>`;
+      html += `<h4 style="margin:10px 0 4px;font-size:13px;">中奖记录明细</h4>`;
 
       if (!accWins.length) {
         html += `<div class="muted">该账号目前没有任何中奖记录。</div>`;
       } else {
-        html += `<table style="width:100%;border-collapse:collapse;font-size:12px;">
-          <thead>
-            <tr>
-              <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">中奖ID</th>
-              <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">活动</th>
-              <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">日期</th>
-              <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">奖项</th>
-              <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">备注</th>
-            </tr>
-          </thead>
-          <tbody>`;
+        html += `
+          <div class="table-wrap" style="border:none;">
+          <table style="min-width:760px;">
+            <thead>
+              <tr>
+                <th>中奖ID</th><th>活动</th><th>日期</th><th>奖项</th><th>备注</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
         accWins.forEach(w => {
-          const prize =
-            (w.prizeLevel || "") + (w.prizeName ? " " + w.prizeName : "");
-          html += `<tr>
-            <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${w.id}</td>
-            <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${w.eventName || "-"}</td>
-            <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${w.eventDate || "-"}</td>
-            <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${prize.trim() || "-"}</td>
-            <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${w.note || ""}</td>
-          </tr>`;
+          const prize = (w.prizeLevel || "") + (w.prizeName ? " " + w.prizeName : "");
+          html += `
+            <tr>
+              <td>${w.id}</td>
+              <td>${w.eventName || "-"}</td>
+              <td>${w.eventDate || "-"}</td>
+              <td>${prize.trim() || "-"}</td>
+              <td>${w.note || ""}</td>
+            </tr>
+          `;
         });
-        html += "</tbody></table>";
+        html += `</tbody></table></div>`;
       }
 
       bodyEl.innerHTML = html;
       modal.classList.add("active");
     }
 
-    function closeAccountDetailModal() {
-      const modal = document.getElementById("account-detail-modal");
-      modal.classList.remove("active");
-    }
+    function closeAccountDetailModal() { document.getElementById("account-detail-modal").classList.remove("active"); }
 
     function handleAccountRowAction(e) {
       const btn = e.currentTarget;
@@ -1134,17 +1050,13 @@
 
       if (action === "edit") {
         loadAccountToForm(idx);
-        document
-          .getElementById("tab-accounts")
-          .scrollIntoView({ behavior: "smooth", block: "start" });
+        document.getElementById("tab-accounts").scrollIntoView({ behavior: "smooth", block: "start" });
       } else if (action === "delete") {
         if (!confirm(`确定删除账号 ${acc.id} (${acc.email}) 吗？其所有中奖记录和参与记录也会被删除！`)) return;
         const id = acc.id;
         accounts.splice(idx, 1);
         wins = wins.filter(w => w.accountId !== id);
-        activities.forEach(act => {
-          act.participants = (act.participants || []).filter(aid => aid !== id);
-        });
+        activities.forEach(act => { act.participants = (act.participants || []).filter(aid => aid !== id); });
         saveData();
         renderAccountsTable();
         renderActivitiesTable();
@@ -1157,41 +1069,24 @@
 
     function setupAccountForm() {
       const form = document.getElementById("account-form");
-      const resetBtn = document.getElementById("account-reset-btn");
-      const searchInput = document.getElementById("account-search");
-      const statusFilterSelect = document.getElementById("account-status-filter");
-
-      resetBtn.addEventListener("click", e => {
-        e.preventDefault();
-        resetAccountForm();
-      });
+      document.getElementById("account-reset-btn").addEventListener("click", e => { e.preventDefault(); resetAccountForm(); });
 
       form.addEventListener("submit", e => {
         e.preventDefault();
-        const editIndex = document
-          .getElementById("account-edit-index")
-          .value.trim();
+        const editIndex = document.getElementById("account-edit-index").value.trim();
         const email = document.getElementById("account-email").value.trim();
         const status = document.getElementById("account-status").value.trim();
         const label = document.getElementById("account-label").value.trim();
         const note = document.getElementById("account-note").value.trim();
 
-        if (!email) {
-          alert("邮箱不能为空。");
-          return;
-        }
+        if (!email) return alert("邮箱不能为空。");
 
         if (editIndex === "") {
-          if (
-            accounts.some(
-              a => (a.email || "").toLowerCase() === email.toLowerCase()
-            )
-          ) {
+          if (accounts.some(a => (a.email || "").toLowerCase() === email.toLowerCase())) {
             if (!confirm("已存在相同邮箱的账号，仍然要新建一条吗？")) return;
           }
           const id = generateAccountId();
-          const createdAt = new Date().toISOString();
-          accounts.push({ id, email, status, label, note, createdAt });
+          accounts.push({ id, email, status, label, note, createdAt: new Date().toISOString() });
         } else {
           const idx = parseInt(editIndex, 10);
           if (!accounts[idx]) return;
@@ -1199,10 +1094,9 @@
           accounts[idx].status = status;
           accounts[idx].label = label;
           accounts[idx].note = note;
-          if (!accounts[idx].createdAt) {
-            accounts[idx].createdAt = new Date().toISOString();
-          }
+          if (!accounts[idx].createdAt) accounts[idx].createdAt = new Date().toISOString();
         }
+
         saveData();
         renderAccountsTable();
         renderActivitiesTable();
@@ -1210,15 +1104,8 @@
         resetAccountForm();
       });
 
-      searchInput.addEventListener("input", e => {
-        accountSearchKeyword = e.target.value || "";
-        renderAccountsTable();
-      });
-
-      statusFilterSelect.addEventListener("change", e => {
-        accountStatusFilter = e.target.value || "";
-        renderAccountsTable();
-      });
+      document.getElementById("account-search").addEventListener("input", e => { accountSearchKeyword = e.target.value || ""; renderAccountsTable(); });
+      document.getElementById("account-status-filter").addEventListener("change", e => { accountStatusFilter = e.target.value || ""; renderAccountsTable(); });
 
       setupAccountBatchActions();
       setupAccountImport();
@@ -1226,78 +1113,40 @@
 
     function setupAccountBatchActions() {
       const selectAll = document.getElementById("accounts-select-all");
-      const batchStatusSelect = document.getElementById("batch-status-select");
-      const batchStatusBtn = document.getElementById("batch-set-status-btn");
-      const batchDeleteBtn = document.getElementById("batch-delete-btn");
-
       selectAll.addEventListener("change", () => {
         const checked = selectAll.checked;
-        document
-          .querySelectorAll("#accounts-tbody .account-select")
-          .forEach(cb => (cb.checked = checked));
+        document.querySelectorAll("#accounts-tbody .account-select").forEach(cb => (cb.checked = checked));
       });
 
-      batchStatusBtn.addEventListener("click", () => {
-        const newStatus = batchStatusSelect.value;
-        if (!newStatus) {
-          alert("请在下拉框选择需要批量设置的状态。");
-          return;
-        }
-        const selected = Array.from(
-          document.querySelectorAll("#accounts-tbody .account-select:checked")
-        );
-        if (!selected.length) {
-          alert("请勾选需要修改状态的账号。");
-          return;
-        }
-        if (
-          !confirm(
-            `确认将选中的 ${selected.length} 个账号状态修改为「${newStatus}」吗？`
-          )
-        )
-          return;
+      document.getElementById("batch-set-status-btn").addEventListener("click", () => {
+        const newStatus = document.getElementById("batch-status-select").value;
+        if (!newStatus) return alert("请在下拉框选择需要批量设置的状态。");
+        const selected = Array.from(document.querySelectorAll("#accounts-tbody .account-select:checked"));
+        if (!selected.length) return alert("请勾选需要修改状态的账号。");
+        if (!confirm(`确认将选中的 ${selected.length} 个账号状态修改为「${newStatus}」吗？`)) return;
 
         selected.forEach(cb => {
           const idx = parseInt(cb.getAttribute("data-index"), 10);
-          if (!isNaN(idx) && accounts[idx]) {
-            accounts[idx].status = newStatus;
-          }
+          if (!isNaN(idx) && accounts[idx]) accounts[idx].status = newStatus;
         });
+
         saveData();
         renderAccountsTable();
         renderActivitiesTable();
         renderStats();
       });
 
-      batchDeleteBtn.addEventListener("click", () => {
-        const selected = Array.from(
-          document.querySelectorAll("#accounts-tbody .account-select:checked")
-        );
-        if (!selected.length) {
-          alert("请勾选需要删除的账号。");
-          return;
-        }
-        if (
-          !confirm(
-            `确认删除选中的 ${selected.length} 个账号吗？对应的中奖记录和参与记录也会一起删除！`
-          )
-        )
-          return;
+      document.getElementById("batch-delete-btn").addEventListener("click", () => {
+        const selected = Array.from(document.querySelectorAll("#accounts-tbody .account-select:checked"));
+        if (!selected.length) return alert("请勾选需要删除的账号。");
+        if (!confirm(`确认删除选中的 ${selected.length} 个账号吗？对应的中奖记录和参与记录也会一起删除！`)) return;
 
-        const indices = selected.map(cb =>
-          parseInt(cb.getAttribute("data-index"), 10)
-        );
-        const idsToDelete = indices
-          .map(i => accounts[i] && accounts[i].id)
-          .filter(Boolean);
+        const indices = selected.map(cb => parseInt(cb.getAttribute("data-index"), 10));
+        const idsToDelete = indices.map(i => accounts[i] && accounts[i].id).filter(Boolean);
 
         accounts = accounts.filter((acc, i) => !indices.includes(i));
         wins = wins.filter(w => !idsToDelete.includes(w.accountId));
-        activities.forEach(act => {
-          act.participants = (act.participants || []).filter(
-            aid => !idsToDelete.includes(aid)
-          );
-        });
+        activities.forEach(act => { act.participants = (act.participants || []).filter(aid => !idsToDelete.includes(aid)); });
 
         saveData();
         renderAccountsTable();
@@ -1310,36 +1159,16 @@
 
     function bulkAddEmailsFromLines(lines, defaultNote) {
       const nowIso = new Date().toISOString();
-      let imported = 0;
-      let skipped = 0;
+      let imported = 0, skipped = 0;
 
       lines.forEach(line => {
         let email = line;
-        if (line.includes(",")) {
-          email = line.split(",")[0].trim();
-        }
+        if (line.includes(",")) email = line.split(",")[0].trim();
         email = email.trim();
-        if (!email || !email.includes("@")) {
-          skipped++;
-          return;
-        }
-        if (
-          accounts.some(
-            a => (a.email || "").toLowerCase() === email.toLowerCase()
-          )
-        ) {
-          skipped++;
-          return;
-        }
+        if (!email || !email.includes("@")) { skipped++; return; }
+        if (accounts.some(a => (a.email || "").toLowerCase() === email.toLowerCase())) { skipped++; return; }
         const id = generateAccountId();
-        accounts.push({
-          id,
-          email,
-          status: "可用",
-          label: "",
-          note: defaultNote || "",
-          createdAt: nowIso,
-        });
+        accounts.push({ id, email, status: "可用", label: "", note: defaultNote || "", createdAt: nowIso });
         imported++;
       });
 
@@ -1348,92 +1177,42 @@
 
     function setupAccountImport() {
       const fileInput = document.getElementById("account-import-file");
-      const importBtn = document.getElementById("account-import-btn");
-      const textArea = document.getElementById("account-import-text");
-      const textBtn = document.getElementById("account-import-text-btn");
-
-      importBtn.addEventListener("click", () => {
+      document.getElementById("account-import-btn").addEventListener("click", () => {
         const file = fileInput.files && fileInput.files[0];
-        if (!file) {
-          alert("请先选择要导入的 CSV 文件。（建议：只导出一列邮箱，CSV UTF-8）");
-          return;
-        }
+        if (!file) return alert("请先选择要导入的 CSV 文件。（建议：只导出一列邮箱，CSV UTF-8）");
+
         const reader = new FileReader();
         reader.onload = e => {
           const text = e.target.result || "";
-          if (!text) {
-            alert("文件内容为空。");
-            return;
-          }
-          const lines = text
-            .split(/\r?\n/)
-            .map(l => l.trim())
-            .filter(l => l.length > 0);
-          if (!lines.length) {
-            alert("文件内容为空。");
-            return;
-          }
-
-          const { imported, skipped } = bulkAddEmailsFromLines(
-            lines,
-            "CSV 导入创建"
-          );
-
-          saveData();
-          renderAccountsTable();
-          renderActivitiesTable();
-          renderStats();
-          alert(
-            `CSV 导入完成：成功导入 ${imported} 条；跳过 ${skipped} 条（格式错误或邮箱重复）。`
-          );
+          const lines = String(text).split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+          const { imported, skipped } = bulkAddEmailsFromLines(lines, "CSV 导入创建");
+          saveData(); renderAccountsTable(); renderActivitiesTable(); renderStats();
+          alert(`CSV 导入完成：成功导入 ${imported} 条；跳过 ${skipped} 条（格式错误或邮箱重复）。`);
         };
         reader.readAsText(file, "utf-8");
       });
 
-      textBtn.addEventListener("click", () => {
-        const text = textArea.value.trim();
-        if (!text) {
-          alert("请先在文本框中粘贴邮箱列表（每行一个邮箱）。");
-          return;
-        }
-        const lines = text
-          .split(/\r?\n/)
-          .map(l => l.trim())
-          .filter(l => l.length > 0);
-        if (!lines.length) {
-          alert("邮箱列表为空。");
-          return;
-        }
-
-        const { imported, skipped } = bulkAddEmailsFromLines(
-          lines,
-          "文本导入创建"
-        );
-
-        saveData();
-        renderAccountsTable();
-        renderActivitiesTable();
-        renderStats();
-        textArea.value = "";
-        alert(
-          `文本导入完成：成功导入 ${imported} 条；跳过 ${skipped} 条（格式错误或邮箱重复）。`
-        );
+      document.getElementById("account-import-text-btn").addEventListener("click", () => {
+        const text = document.getElementById("account-import-text").value.trim();
+        if (!text) return alert("请先在文本框中粘贴邮箱列表（每行一个邮箱）。");
+        const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        const { imported, skipped } = bulkAddEmailsFromLines(lines, "文本导入创建");
+        saveData(); renderAccountsTable(); renderActivitiesTable(); renderStats();
+        document.getElementById("account-import-text").value = "";
+        alert(`文本导入完成：成功导入 ${imported} 条；跳过 ${skipped} 条（格式错误或邮箱重复）。`);
       });
     }
 
     // ========= 活动管理 =========
-    let activityFormParticipants = []; // 当前表单中的参与账号列表（账号ID）
+    let activityFormParticipants = [];
 
     function updateActivityCurrentEdit(text) {
       const el = document.getElementById("activity-current-edit");
       if (el) el.innerHTML = `当前模式：<span>${text}</span>`;
     }
-
     function updateActivityParticipantsCountInput() {
-      document.getElementById("activity-participants-count").value =
-        activityFormParticipants.length;
+      document.getElementById("activity-participants-count").value = activityFormParticipants.length;
     }
-
     function resetActivityForm() {
       document.getElementById("activity-edit-index").value = "";
       document.getElementById("activity-id").value = "";
@@ -1447,23 +1226,17 @@
       updateActivityParticipantsCountInput();
       updateActivityCurrentEdit("新建活动");
     }
-
     function loadActivityToForm(idx) {
       const act = activities[idx];
       document.getElementById("activity-edit-index").value = idx;
       document.getElementById("activity-id").value = act.id || "";
       document.getElementById("activity-name").value = act.name || "";
       document.getElementById("activity-date").value = act.date || "";
-      document.getElementById("activity-status").value =
-        act.status || "进行中";
-      document.getElementById("activity-prize-name").value =
-        act.prizeName || "";
-      document.getElementById("activity-prize-level").value =
-        act.prizeLevel || "";
+      document.getElementById("activity-status").value = act.status || "进行中";
+      document.getElementById("activity-prize-name").value = act.prizeName || "";
+      document.getElementById("activity-prize-level").value = act.prizeLevel || "";
       document.getElementById("activity-note").value = act.note || "";
-      activityFormParticipants = Array.isArray(act.participants)
-        ? [...act.participants]
-        : [];
+      activityFormParticipants = Array.isArray(act.participants) ? [...act.participants] : [];
       updateActivityParticipantsCountInput();
       updateActivityCurrentEdit(`编辑活动 ${act.id}`);
     }
@@ -1471,17 +1244,11 @@
     function renderActivitiesTable() {
       const tbody = document.getElementById("activities-tbody");
       tbody.innerHTML = "";
-
       const keyword = (activitySearchKeyword || "").toLowerCase();
 
       activities.forEach((act, index) => {
         if (keyword) {
-          const text =
-            (act.id || "") +
-            " " +
-            (act.name || "") +
-            " " +
-            (act.note || "");
+          const text = (act.id || "") + " " + (act.name || "") + " " + (act.note || "");
           if (!text.toLowerCase().includes(keyword)) return;
         }
 
@@ -1489,8 +1256,7 @@
         const winsOfAct = wins.filter(w => w.activityId === act.id);
         const pCount = participants.length;
         const wCount = winsOfAct.length;
-        const rate =
-          pCount > 0 ? ((wCount / pCount) * 100).toFixed(1) + "%" : "-";
+        const rate = pCount > 0 ? ((wCount / pCount) * 100).toFixed(1) + "%" : "-";
 
         let statusClass = "tag-warning";
         if (act.status === "进行中") statusClass = "tag-success";
@@ -1517,10 +1283,7 @@
         tbody.appendChild(tr);
       });
 
-      tbody.querySelectorAll("button").forEach(btn => {
-        btn.addEventListener("click", handleActivityRowAction);
-      });
-
+      tbody.querySelectorAll("button").forEach(btn => btn.addEventListener("click", handleActivityRowAction));
       refreshCounts();
       updateActivityOptionsForWinner();
     }
@@ -1540,28 +1303,18 @@
       }
 
       const participants = act.participants || [];
-      const winsOfAct = wins
-        .filter(w => w.activityId === act.id)
-        .sort((a, b) =>
-          (b.eventDate || b.createdAt || "").localeCompare(
-            a.eventDate || a.createdAt || ""
-          )
-        );
+      const winsOfAct = wins.filter(w => w.activityId === act.id)
+        .sort((a, b) => (b.eventDate || b.createdAt || "").localeCompare(a.eventDate || a.createdAt || ""));
       const pCount = participants.length;
       const wCount = winsOfAct.length;
-      const rate =
-        pCount > 0 ? ((wCount / pCount) * 100).toFixed(1) + "%" : "-";
+      const rate = pCount > 0 ? ((wCount / pCount) * 100).toFixed(1) + "%" : "-";
 
       titleEl.textContent = `活动详情：${act.id} - ${act.name}`;
       currentActivityDetailId = activityId;
 
       let html = `
-        <div style="margin-bottom:6px;">
-          状态：${act.status || ""} ｜ 日期：${act.date || "-"} ｜ 创建：${formatDateTime(act.createdAt)}
-        </div>
-        <div style="margin-bottom:8px;font-size:12px;color:#6b7280;">
-          参与账号：${pCount} 个 ｜ 中奖账号：${wCount} 个 ｜ 中奖率：${rate}
-        </div>
+        <div style="margin-bottom:6px;">状态：${act.status || ""} ｜ 日期：${act.date || "-"} ｜ 创建：${formatDateTime(act.createdAt)}</div>
+        <div style="margin-bottom:8px;font-size:12px;color:#6b7280;">参与账号：${pCount} 个 ｜ 中奖账号：${wCount} 个 ｜ 中奖率：${rate}</div>
         <h4 style="margin:4px 0;font-size:13px;">中奖账户列表</h4>
       `;
 
@@ -1569,34 +1322,28 @@
         html += `<div class="muted">该活动当前还没有任何中奖记录。</div>`;
       } else {
         html += `
-          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <div class="table-wrap" style="border:none;">
+          <table style="min-width:760px;">
             <thead>
-              <tr>
-                <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">中奖ID</th>
-                <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">账号</th>
-                <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">日期</th>
-                <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">奖项</th>
-                <th style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">备注</th>
-              </tr>
+              <tr><th>中奖ID</th><th>账号</th><th>日期</th><th>奖项</th><th>备注</th></tr>
             </thead>
             <tbody>
         `;
         winsOfAct.forEach(w => {
           const acc = accounts.find(a => a.id === w.accountId);
-          const prize =
-            (w.prizeLevel || "") + (w.prizeName ? " " + w.prizeName : "");
+          const prize = (w.prizeLevel || "") + (w.prizeName ? " " + w.prizeName : "");
           const accText = acc ? `${acc.id} - ${acc.email}` : w.accountId;
           html += `
             <tr>
-              <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${w.id}</td>
-              <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${accText}</td>
-              <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${w.eventDate || "-"}</td>
-              <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${prize.trim() || "-"}</td>
-              <td style="border-bottom:1px solid #e5e7eb;padding:4px 6px;">${w.note || ""}</td>
+              <td>${w.id}</td>
+              <td>${accText}</td>
+              <td>${w.eventDate || "-"}</td>
+              <td>${prize.trim() || "-"}</td>
+              <td>${w.note || ""}</td>
             </tr>
           `;
         });
-        html += "</tbody></table>";
+        html += `</tbody></table></div>`;
       }
 
       bodyEl.innerHTML = html;
@@ -1604,8 +1351,7 @@
     }
 
     function closeActivityDetailModal() {
-      const modal = document.getElementById("activity-detail-modal");
-      modal.classList.remove("active");
+      document.getElementById("activity-detail-modal").classList.remove("active");
       currentActivityDetailId = null;
     }
 
@@ -1618,16 +1364,9 @@
 
       if (action === "edit") {
         loadActivityToForm(idx);
-        document
-          .getElementById("tab-activities")
-          .scrollIntoView({ behavior: "smooth", block: "start" });
+        document.getElementById("tab-activities").scrollIntoView({ behavior: "smooth", block: "start" });
       } else if (action === "delete") {
-        if (
-          !confirm(
-            `确定删除活动 ${act.id}（${act.name}）吗？该活动下所有中奖记录也会被删除！`
-          )
-        )
-          return;
+        if (!confirm(`确定删除活动 ${act.id}（${act.name}）吗？该活动下所有中奖记录也会被删除！`)) return;
         const id = act.id;
         activities.splice(idx, 1);
         wins = wins.filter(w => w.activityId !== id);
@@ -1636,9 +1375,7 @@
         renderWinsTable();
         renderStats();
       } else if (action === "goto-winner") {
-        document
-          .querySelector('.tab-button[data-tab="winners"]')
-          .click();
+        document.querySelector('.tab-button[data-tab="winners"]').click();
         document.getElementById("win-activity-id").value = act.id;
         updateWinnerActivitySummary();
       } else if (action === "detail") {
@@ -1647,82 +1384,40 @@
     }
 
     function setupActivityForm() {
-      const form = document.getElementById("activity-form");
-      const resetBtn = document.getElementById("activity-reset-btn");
-      const selectAllBtn = document.getElementById(
-        "activity-select-all-available-btn"
-      );
-      const clearBtn = document.getElementById(
-        "activity-clear-participants-btn"
-      );
-      const searchInput = document.getElementById("activity-search");
+      document.getElementById("activity-reset-btn").addEventListener("click", e => { e.preventDefault(); resetActivityForm(); });
 
-      resetBtn.addEventListener("click", e => {
-        e.preventDefault();
-        resetActivityForm();
-      });
-
-      selectAllBtn.addEventListener("click", () => {
-        const available = accounts
-          .filter(a => a.status === "可用")
-          .map(a => a.id);
+      document.getElementById("activity-select-all-available-btn").addEventListener("click", () => {
+        const available = accounts.filter(a => a.status === "可用").map(a => a.id);
         activityFormParticipants = available;
         updateActivityParticipantsCountInput();
         alert(`已选择 ${available.length} 个「可用」账号参与本活动。`);
       });
 
-      clearBtn.addEventListener("click", () => {
+      document.getElementById("activity-clear-participants-btn").addEventListener("click", () => {
         activityFormParticipants = [];
         updateActivityParticipantsCountInput();
       });
 
-      form.addEventListener("submit", e => {
+      document.getElementById("activity-form").addEventListener("submit", e => {
         e.preventDefault();
-        const editIndex = document
-          .getElementById("activity-edit-index")
-          .value.trim();
+        const editIndex = document.getElementById("activity-edit-index").value.trim();
         const name = document.getElementById("activity-name").value.trim();
         const date = document.getElementById("activity-date").value.trim();
-        const status = document
-          .getElementById("activity-status")
-          .value.trim();
-        const prizeName = document
-          .getElementById("activity-prize-name")
-          .value.trim();
-        const prizeLevel = document
-          .getElementById("activity-prize-level")
-          .value.trim();
+        const status = document.getElementById("activity-status").value.trim();
+        const prizeName = document.getElementById("activity-prize-name").value.trim();
+        const prizeLevel = document.getElementById("activity-prize-level").value.trim();
         const note = document.getElementById("activity-note").value.trim();
 
-        if (!name) {
-          alert("请填写活动名称。");
-          return;
-        }
+        if (!name) return alert("请填写活动名称。");
 
         if (editIndex === "") {
           const id = generateActivityId();
-          const act = {
-            id,
-            name,
-            date,
-            status,
-            prizeName,
-            prizeLevel,
-            note,
-            participants: [...activityFormParticipants],
-            createdAt: new Date().toISOString(),
-          };
-          activities.push(act);
+          activities.push({ id, name, date, status, prizeName, prizeLevel, note, participants: [...activityFormParticipants], createdAt: new Date().toISOString() });
         } else {
           const idx = parseInt(editIndex, 10);
           if (!activities[idx]) return;
           const act = activities[idx];
-          act.name = name;
-          act.date = date;
-          act.status = status;
-          act.prizeName = prizeName;
-          act.prizeLevel = prizeLevel;
-          act.note = note;
+          act.name = name; act.date = date; act.status = status; act.prizeName = prizeName; act.prizeLevel = prizeLevel; act.note = note;
           act.participants = [...activityFormParticipants];
           if (!act.createdAt) act.createdAt = new Date().toISOString();
         }
@@ -1733,10 +1428,7 @@
         resetActivityForm();
       });
 
-      searchInput.addEventListener("input", e => {
-        activitySearchKeyword = e.target.value || "";
-        renderActivitiesTable();
-      });
+      document.getElementById("activity-search").addEventListener("input", e => { activitySearchKeyword = e.target.value || ""; renderActivitiesTable(); });
     }
 
     function updateActivityOptionsForWinner() {
@@ -1749,9 +1441,7 @@
         opt.textContent = `${act.id} - ${act.name}`;
         select.appendChild(opt);
       });
-      if (current && activities.some(a => a.id === current)) {
-        select.value = current;
-      }
+      if (current && activities.some(a => a.id === current)) select.value = current;
       updateWinnerActivitySummary();
     }
 
@@ -1768,95 +1458,51 @@
 
     function updateWinnerActivitySummary() {
       const summaryEl = document.getElementById("win-activity-summary");
-      const select = document.getElementById("win-activity-id");
-      const id = select.value;
-      if (!id) {
-        summaryEl.textContent =
-          "未选择活动。请选择活动后再录入中奖账号。";
-        return;
-      }
+      const id = document.getElementById("win-activity-id").value;
+      if (!id) { summaryEl.textContent = "未选择活动。请选择活动后再录入中奖账号。"; return; }
       const act = activities.find(a => a.id === id);
-      if (!act) {
-        summaryEl.textContent = "当前活动不存在。";
-        return;
-      }
+      if (!act) { summaryEl.textContent = "当前活动不存在。"; return; }
       const participants = act.participants || [];
       const winsOfAct = wins.filter(w => w.activityId === id);
       const pCount = participants.length;
       const wCount = winsOfAct.length;
-      const rate =
-        pCount > 0 ? ((wCount / pCount) * 100).toFixed(1) + "%" : "-";
+      const rate = pCount > 0 ? ((wCount / pCount) * 100).toFixed(1) + "%" : "-";
       summaryEl.textContent = `当前活动：${act.name} ｜ 参与账号：${pCount} 个 ｜ 已登记中奖：${wCount} 个 ｜ 中奖率：${rate}`;
     }
 
     function setupWinnerForm() {
-      const form = document.getElementById("winner-form");
-      const resetBtn = document.getElementById("winner-reset-btn");
+      document.getElementById("winner-reset-btn").addEventListener("click", e => { e.preventDefault(); resetWinnerForm(); });
+
       const activitySelect = document.getElementById("win-activity-id");
-
-      resetBtn.addEventListener("click", e => {
-        e.preventDefault();
-        resetWinnerForm();
-      });
-
       activitySelect.addEventListener("change", () => {
         const actId = activitySelect.value;
         const act = activities.find(a => a.id === actId);
         if (act) {
           document.getElementById("win-event-date").value = act.date || "";
-          if (!document.getElementById("win-prize-name").value) {
-            document.getElementById("win-prize-name").value =
-              act.prizeName || "";
-          }
-          if (!document.getElementById("win-prize-level").value) {
-            document.getElementById("win-prize-level").value =
-              act.prizeLevel || "";
-          }
+          if (!document.getElementById("win-prize-name").value) document.getElementById("win-prize-name").value = act.prizeName || "";
+          if (!document.getElementById("win-prize-level").value) document.getElementById("win-prize-level").value = act.prizeLevel || "";
         }
         updateWinnerActivitySummary();
       });
 
-      form.addEventListener("submit", e => {
+      document.getElementById("winner-form").addEventListener("submit", e => {
         e.preventDefault();
-        const activityId =
-          document.getElementById("win-activity-id").value;
-        const eventDate =
-          document.getElementById("win-event-date").value.trim();
-        let prizeName =
-          document.getElementById("win-prize-name").value.trim();
-        let prizeLevel =
-          document.getElementById("win-prize-level").value.trim();
-        const note =
-          document.getElementById("win-note").value.trim();
-        const accountsText = document
-          .getElementById("win-accounts-text")
-          .value.trim();
+        const activityId = document.getElementById("win-activity-id").value;
+        const eventDate = document.getElementById("win-event-date").value.trim();
+        let prizeName = document.getElementById("win-prize-name").value.trim();
+        let prizeLevel = document.getElementById("win-prize-level").value.trim();
+        const note = document.getElementById("win-note").value.trim();
+        const accountsText = document.getElementById("win-accounts-text").value.trim();
 
-        if (!activityId) {
-          alert("请先选择活动。");
-          return;
-        }
+        if (!activityId) return alert("请先选择活动。");
         const act = activities.find(a => a.id === activityId);
-        if (!act) {
-          alert("活动不存在，请重新选择。");
-          return;
-        }
-        if (!accountsText) {
-          alert("请粘贴至少一个中奖账号（每行一个账号ID或邮箱）。");
-          return;
-        }
+        if (!act) return alert("活动不存在，请重新选择。");
+        if (!accountsText) return alert("请粘贴至少一个中奖账号（每行一个账号ID或邮箱）。");
         if (!prizeName) prizeName = act.prizeName || "";
         if (!prizeLevel) prizeLevel = act.prizeLevel || "";
 
-        const lines = accountsText
-          .split(/\r?\n/)
-          .map(l => l.trim())
-          .filter(l => l.length > 0);
-
-        if (!lines.length) {
-          alert("中奖账号列表为空。");
-          return;
-        }
+        const lines = accountsText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        if (!lines.length) return alert("中奖账号列表为空。");
 
         let created = 0;
         const notFound = [];
@@ -1864,27 +1510,14 @@
 
         lines.forEach(line => {
           const key = line.toLowerCase();
-          const acc = accounts.find(
-            a =>
-              (a.id && a.id.toLowerCase() === key) ||
-              ((a.email || "").toLowerCase() === key)
-          );
-          if (!acc) {
-            notFound.push(line);
-            return;
-          }
+          const acc = accounts.find(a => (a.id && a.id.toLowerCase() === key) || ((a.email || "").toLowerCase() === key));
+          if (!acc) { notFound.push(line); return; }
 
-          const exists = wins.some(
-            w => w.activityId === activityId && w.accountId === acc.id
-          );
-          if (exists) {
-            duplicated.push(line);
-            return;
-          }
+          const exists = wins.some(w => w.activityId === activityId && w.accountId === acc.id);
+          if (exists) { duplicated.push(line); return; }
 
-          const id = generateWinId();
-          const win = {
-            id,
+          wins.push({
+            id: generateWinId(),
             accountId: acc.id,
             activityId,
             eventName: act.name,
@@ -1893,8 +1526,7 @@
             prizeLevel,
             note,
             createdAt: new Date().toISOString(),
-          };
-          wins.push(win);
+          });
           created++;
         });
 
@@ -1906,16 +1538,8 @@
         updateWinnerActivitySummary();
 
         let msg = `登记完成：成功为 ${created} 个账号新增中奖记录。`;
-        if (notFound.length) {
-          msg += `\n\n未找到账号（ID 或邮箱不匹配），已跳过 ${notFound.length} 行：\n` +
-            notFound.slice(0, 10).join("\n") +
-            (notFound.length > 10 ? "\n..." : "");
-        }
-        if (duplicated.length) {
-          msg += `\n\n以下 ${duplicated.length} 行为重复账号（本活动已登记过中奖），已自动跳过：\n` +
-            duplicated.slice(0, 10).join("\n") +
-            (duplicated.length > 10 ? "\n..." : "");
-        }
+        if (notFound.length) msg += `\n\n未找到账号（ID 或邮箱不匹配），已跳过 ${notFound.length} 行：\n${notFound.slice(0,10).join("\n")}${notFound.length>10? "\n..." : ""}`;
+        if (duplicated.length) msg += `\n\n以下 ${duplicated.length} 行为重复账号（本活动已登记过中奖），已自动跳过：\n${duplicated.slice(0,10).join("\n")}${duplicated.length>10? "\n..." : ""}`;
         alert(msg);
       });
     }
@@ -1923,18 +1547,10 @@
     function renderWinsTable() {
       const tbody = document.getElementById("wins-tbody");
       tbody.innerHTML = "";
-
-      const sorted = [...wins].sort((a, b) =>
-        (b.eventDate || b.createdAt || "").localeCompare(
-          a.eventDate || a.createdAt || ""
-        )
-      );
-      const list = sorted.slice(0, 50);
-
-      list.forEach(w => {
+      const sorted = [...wins].sort((a, b) => (b.eventDate || b.createdAt || "").localeCompare(a.eventDate || a.createdAt || ""));
+      sorted.slice(0, 50).forEach(w => {
         const acc = accounts.find(a => a.id === w.accountId);
-        const prize =
-          (w.prizeLevel || "") + (w.prizeName ? " " + w.prizeName : "");
+        const prize = (w.prizeLevel || "") + (w.prizeName ? " " + w.prizeName : "");
         const tr = document.createElement("tr");
         tr.innerHTML = `
           <td>${w.id}</td>
@@ -1948,7 +1564,7 @@
       });
     }
 
-    // ========= 统计视图 =========
+    // ========= 统计 =========
     function renderStats() {
       const accContainer = document.getElementById("stats-accounts");
       const actContainer = document.getElementById("stats-activities");
@@ -1960,45 +1576,30 @@
       } else {
         const statsMap = new Map();
         wins.forEach(w => {
-          if (!statsMap.has(w.accountId)) {
-            statsMap.set(w.accountId, { total: 0, lastEvent: "", lastDate: "" });
-          }
+          if (!statsMap.has(w.accountId)) statsMap.set(w.accountId, { total: 0, lastEvent: "", lastDate: "" });
           const s = statsMap.get(w.accountId);
           s.total += 1;
           const d = w.eventDate || w.createdAt || "";
-          if (!s.lastDate || d > s.lastDate) {
-            s.lastDate = d;
-            s.lastEvent = w.eventName || "";
-          }
+          if (!s.lastDate || d > s.lastDate) { s.lastDate = d; s.lastEvent = w.eventName || ""; }
         });
 
         const list = accounts.map(acc => {
-          const s = statsMap.get(acc.id) || {
-            total: 0,
-            lastEvent: "",
-            lastDate: "",
-          };
+          const s = statsMap.get(acc.id) || { total: 0, lastEvent: "", lastDate: "" };
           return { acc, total: s.total, lastEvent: s.lastEvent, lastDate: s.lastDate };
-        });
-
-        list.sort((a, b) => b.total - a.total);
+        }).sort((a, b) => b.total - a.total);
 
         list.forEach(item => {
           const { acc, total, lastEvent, lastDate } = item;
           let statusClass = "tag-warning";
           if (acc.status === "可用") statusClass = "tag-success";
-          else if (acc.status === "封禁" || acc.status === "黑名单")
-            statusClass = "tag-danger";
-
+          else if (acc.status === "封禁" || acc.status === "黑名单") statusClass = "tag-danger";
           const card = document.createElement("div");
           card.className = "stat-card";
           card.innerHTML = `
             <h3>${acc.id} - ${acc.email}</h3>
             <div>状态：<span class="tag ${statusClass}">${acc.status || ""}</span> ｜ 标签：${acc.label || "-"}</div>
             <div style="margin-top:4px;">总中奖次数：<strong>${total}</strong></div>
-            <div style="margin-top:4px;">最近中奖：${
-              lastEvent ? lastEvent + "（" + (lastDate || "日期未填") + "）" : "-"
-            }</div>
+            <div style="margin-top:4px;">最近中奖：${lastEvent ? lastEvent + "（" + (lastDate || "日期未填") + "）" : "-"}</div>
           `;
           accContainer.appendChild(card);
         });
@@ -2012,9 +1613,7 @@
           const winsOfAct = wins.filter(w => w.activityId === act.id);
           const pCount = participants.length;
           const wCount = winsOfAct.length;
-          const rate =
-            pCount > 0 ? ((wCount / pCount) * 100).toFixed(1) + "%" : "-";
-
+          const rate = pCount > 0 ? ((wCount / pCount) * 100).toFixed(1) + "%" : "-";
           let statusClass = "tag-warning";
           if (act.status === "进行中") statusClass = "tag-success";
           else if (act.status === "已结束") statusClass = "tag-danger";
@@ -2033,57 +1632,26 @@
       }
     }
 
-    // ========= 导出当前活动中奖账号为 CSV =========
+    // ========= 导出活动中奖 CSV =========
     function exportActivityWinnersCSV(activityId) {
       const act = activities.find(a => a.id === activityId);
-      if (!act) {
-        alert("活动不存在，无法导出。");
-        return;
-      }
+      if (!act) return alert("活动不存在，无法导出。");
       const winsOfAct = wins.filter(w => w.activityId === activityId);
-      if (!winsOfAct.length) {
-        alert("该活动尚无中奖记录，无法导出。");
-        return;
-      }
+      if (!winsOfAct.length) return alert("该活动尚无中奖记录，无法导出。");
 
-      const rows = [];
-      rows.push([
-        "活动ID",
-        "活动名称",
-        "账号ID",
-        "邮箱",
-        "中奖日期",
-        "奖项",
-        "备注",
-      ]);
-
+      const rows = [["活动ID","活动名称","账号ID","邮箱","中奖日期","奖项","备注"]];
       winsOfAct.forEach(w => {
         const acc = accounts.find(a => a.id === w.accountId);
         const email = acc ? acc.email : "";
-        const prize =
-          (w.prizeLevel || "") + (w.prizeName ? " " + w.prizeName : "");
-        rows.push([
-          act.id || "",
-          act.name || "",
-          w.accountId || "",
-          email || "",
-          w.eventDate || "",
-          prize.trim(),
-          w.note || "",
-        ]);
+        const prize = (w.prizeLevel || "") + (w.prizeName ? " " + w.prizeName : "");
+        rows.push([act.id||"", act.name||"", w.accountId||"", email||"", w.eventDate||"", prize.trim(), w.note||""]);
       });
 
-      const csvLines = rows.map(row =>
-        row
-          .map(field => {
-            const v = field == null ? "" : String(field);
-            if (/[",\n]/.test(v)) {
-              return '"' + v.replace(/"/g, '""') + '"';
-            }
-            return v;
-          })
-          .join(",")
-      );
+      const csvLines = rows.map(row => row.map(field => {
+        const v = field == null ? "" : String(field);
+        if (/[",\n]/.test(v)) return '"' + v.replace(/"/g, '""') + '"';
+        return v;
+      }).join(","));
       const csvContent = "\uFEFF" + csvLines.join("\r\n");
 
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -2098,51 +1666,28 @@
       URL.revokeObjectURL(url);
     }
 
-    // ========= 数据备份 =========
+    // ========= 备份 =========
     function updateExportText() {
-      const obj = {
-        accounts,
-        activities,
-        wins,
-        exportedAt: new Date().toISOString(),
-      };
-      document.getElementById("export-text").value = JSON.stringify(
-        obj,
-        null,
-        2
-      );
+      const obj = { accounts, activities, wins, exportedAt: new Date().toISOString() };
+      document.getElementById("export-text").value = JSON.stringify(obj, null, 2);
     }
-
     function setupBackup() {
-      const exportBtn = document.getElementById("export-btn");
-      const importBtn = document.getElementById("import-btn");
-      const clearAllBtn = document.getElementById("clear-all-btn");
-
-      exportBtn.addEventListener("click", () => {
+      document.getElementById("export-btn").addEventListener("click", () => {
         updateExportText();
         alert("已生成最新导出数据，可以复制保存为 .json 文件。");
       });
 
-      importBtn.addEventListener("click", () => {
+      document.getElementById("import-btn").addEventListener("click", () => {
         const text = document.getElementById("import-text").value.trim();
-        if (!text) {
-          alert("请先在右侧文本框粘贴 JSON 数据。");
-          return;
-        }
-        if (
-          !confirm("导入 JSON 会覆盖当前所有账号、活动和中奖记录，确定继续吗？")
-        )
-          return;
+        if (!text) return alert("请先在右侧文本框粘贴 JSON 数据。");
+        if (!confirm("导入 JSON 会覆盖当前所有账号、活动和中奖记录，确定继续吗？")) return;
         try {
           const obj = JSON.parse(text);
           accounts = Array.isArray(obj.accounts) ? obj.accounts : [];
           activities = Array.isArray(obj.activities) ? obj.activities : [];
           wins = Array.isArray(obj.wins) ? obj.wins : [];
           saveData();
-          renderAccountsTable();
-          renderActivitiesTable();
-          renderWinsTable();
-          renderStats();
+          renderAccountsTable(); renderActivitiesTable(); renderWinsTable(); renderStats();
           updateExportText();
           alert("导入成功。");
         } catch (e) {
@@ -2151,61 +1696,35 @@
         }
       });
 
-      clearAllBtn.addEventListener("click", () => {
-        if (
-          !confirm("确定清空所有账号、活动和中奖记录吗？此操作不可恢复！")
-        )
-          return;
-        accounts = [];
-        activities = [];
-        wins = [];
+      document.getElementById("clear-all-btn").addEventListener("click", () => {
+        if (!confirm("确定清空所有账号、活动和中奖记录吗？此操作不可恢复！")) return;
+        accounts = []; activities = []; wins = [];
         saveData();
-        renderAccountsTable();
-        renderActivitiesTable();
-        renderWinsTable();
-        renderStats();
+        renderAccountsTable(); renderActivitiesTable(); renderWinsTable(); renderStats();
         updateExportText();
         document.getElementById("import-text").value = "";
         alert("已清空所有数据。");
       });
     }
 
-    // ========= 弹窗绑定 =========
+    // ========= 弹窗 =========
     function initModal() {
       const accModal = document.getElementById("account-detail-modal");
-      const accCloseBtn = document.getElementById("account-detail-close-btn");
-      accCloseBtn.addEventListener("click", () => {
-        closeAccountDetailModal();
-      });
-      accModal.addEventListener("click", e => {
-        if (e.target === accModal) {
-          closeAccountDetailModal();
-        }
-      });
+      document.getElementById("account-detail-close-btn").addEventListener("click", closeAccountDetailModal);
+      accModal.addEventListener("click", e => { if (e.target === accModal) closeAccountDetailModal(); });
 
       const actModal = document.getElementById("activity-detail-modal");
-      const actCloseBtn = document.getElementById("activity-detail-close-btn");
-      const actExportBtn = document.getElementById("activity-detail-export-btn");
+      document.getElementById("activity-detail-close-btn").addEventListener("click", closeActivityDetailModal);
+      actModal.addEventListener("click", e => { if (e.target === actModal) closeActivityDetailModal(); });
 
-      actCloseBtn.addEventListener("click", () => {
-        closeActivityDetailModal();
-      });
-      actModal.addEventListener("click", e => {
-        if (e.target === actModal) {
-          closeActivityDetailModal();
-        }
-      });
-      actExportBtn.addEventListener("click", () => {
-        if (!currentActivityDetailId) {
-          alert("当前没有可导出的活动。");
-          return;
-        }
+      document.getElementById("activity-detail-export-btn").addEventListener("click", () => {
+        if (!currentActivityDetailId) return alert("当前没有可导出的活动。");
         exportActivityWinnersCSV(currentActivityDetailId);
       });
     }
 
     // ========= 密码锁 =========
-    const SYSTEM_PASSWORD = "568568";  // 你设定的访问密码
+    const SYSTEM_PASSWORD = "568568";
 
     function setupPasswordGate(startAppCallback) {
       const overlay = document.getElementById("password-overlay");
@@ -2213,48 +1732,68 @@
       const btn = document.getElementById("password-submit");
       const errorEl = document.getElementById("password-error");
 
-      function unlock() {
+      function unlockAndStart() {
         overlay.style.display = "none";
         localStorage.setItem("acc_act_pass_ok", "1");
-        if (typeof startAppCallback === "function") {
-          startAppCallback();
-        }
-      }
 
-      const ok = localStorage.getItem("acc_act_pass_ok");
-      if (ok === "1") {
-        unlock();
-        return;
+        Promise.resolve()
+          .then(startAppCallback)
+          .catch(err => {
+            console.error(err);
+            alert("已进入系统，但云端/初始化出现问题，将使用本机缓存继续。");
+            try {
+              loadDataLocal();
+              setupTabs();
+              setupAccountForm();
+              setupActivityForm();
+              setupWinnerForm();
+              setupBackup();
+              initModal();
+              renderAccountsTable();
+              renderActivitiesTable();
+              renderWinsTable();
+              renderStats();
+              updateExportText();
+              resetAccountForm();
+              resetActivityForm();
+              resetWinnerForm();
+            } catch (e) {
+              console.error(e);
+            }
+          });
       }
 
       function check() {
         const v = input.value.trim();
-        if (!v) {
-          errorEl.textContent = "请输入密码。";
-          return;
-        }
-        if (v === SYSTEM_PASSWORD) {
-          errorEl.textContent = "";
-          unlock();
-        } else {
-          errorEl.textContent = "密码错误。";
-        }
+        if (!v) { errorEl.textContent = "请输入密码。"; return; }
+        if (v === SYSTEM_PASSWORD) { errorEl.textContent = ""; unlockAndStart(); }
+        else { errorEl.textContent = "密码错误。"; }
       }
 
-      btn.addEventListener("click", check);
-      input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") check();
-      });
+      const ok = localStorage.getItem("acc_act_pass_ok");
+      if (ok === "1") { unlockAndStart(); return; }
 
+      btn.addEventListener("click", check);
+      input.addEventListener("keydown", (e) => { if (e.key === "Enter") check(); });
       setTimeout(() => input.focus(), 50);
     }
 
     // ========= 初始化 =========
     async function initApp() {
-      const ok = await loadDataRemote();
-      if (!ok) {
-        loadDataLocal();
+      // 先尝试加载 Supabase SDK（失败也能继续本地）
+      setCloudHint("正在检测云端同步组件（Supabase）...");
+      const sdkOk = await loadSupabaseSdk();
+
+      if (!sdkOk) {
+        cloudEnabled = false;
+        setCloudHint("提示：云端同步组件加载失败（可能网络/被拦），系统将使用本机缓存。");
+      } else {
+        setCloudHint("云端同步组件已就绪：将尝试从 Supabase 拉取数据。");
       }
+
+      // 云端优先，失败则本地兜底
+      const remoteOk = await loadDataRemote();
+      if (!remoteOk) loadDataLocal();
 
       setupTabs();
       setupAccountForm();
@@ -2271,12 +1810,11 @@
       resetAccountForm();
       resetActivityForm();
       resetWinnerForm();
+      refreshCounts();
     }
 
     document.addEventListener("DOMContentLoaded", () => {
-      setupPasswordGate(() => {
-        initApp();
-      });
+      setupPasswordGate(() => initApp());
     });
   </script>
 </body>
