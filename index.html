@@ -5,7 +5,6 @@
   <title>账号库 · 活动 · 中奖统计系统（云端版）</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- 不直接写 <script src=...>，改为 JS 动态加载，支持双 CDN 兜底 -->
   <style>
     * { box-sizing: border-box; }
     body {
@@ -118,6 +117,7 @@
       gap: 8px;
       flex-wrap: wrap;
       justify-content: flex-end;
+      align-items: center;
     }
 
     button {
@@ -131,9 +131,8 @@
     .btn-secondary { background: #e5e7eb; color: #111827; }
     .btn-danger { background: #dc2626; color: #f9fafb; }
 
-    /* 表格：桌面正常，手机可横向滑动 */
     .table-wrap { width: 100%; overflow: auto; border-radius: 10px; border: 1px solid #e5e7eb; background: #fff; }
-    table { width: 100%; border-collapse: collapse; margin-top: 0; font-size: 12px; min-width: 980px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 980px; }
     thead { background: #f3f4f6; }
     th, td {
       padding: 6px 8px;
@@ -165,6 +164,7 @@
     .table-actions button { padding: 2px 6px; font-size: 11px; }
 
     .badge-number { font-variant-numeric: tabular-nums; }
+    .muted { color: #9ca3af; }
 
     .toolbar {
       display: flex;
@@ -179,7 +179,7 @@
       margin-top: 6px;
     }
     .toolbar-right { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-    .small-input { max-width: 220px; }
+    .small-input { max-width: 260px; }
 
     .stats-grid {
       display: grid;
@@ -195,9 +195,7 @@
       font-size: 12px;
     }
     .stat-card h3 { margin: 0 0 4px; font-size: 13px; }
-    .muted { color: #9ca3af; }
 
-    /* 弹窗样式 */
     .modal-backdrop {
       position: fixed;
       inset: 0;
@@ -211,7 +209,7 @@
     .modal {
       background: #ffffff;
       border-radius: 12px;
-      max-width: 820px;
+      max-width: 920px;
       width: 96%;
       max-height: 82vh;
       box-shadow: 0 20px 40px rgba(15, 23, 42, 0.4);
@@ -225,8 +223,9 @@
       justify-content: space-between;
       align-items: center;
       gap: 8px;
+      flex-wrap: wrap;
     }
-    .modal-header-actions { display: inline-flex; gap: 6px; align-items: center; }
+    .modal-header-actions { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
     .modal-header-actions .btn-secondary { padding: 4px 8px; font-size: 11px; }
     .modal-close-btn {
       border: none;
@@ -239,11 +238,21 @@
     }
     .modal-body { padding: 10px 14px 12px; overflow: auto; font-size: 12px; }
 
+    .inline-check {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #4b5563;
+      user-select: none;
+    }
+    .inline-check input { transform: translateY(1px); }
+
     @media (max-width: 640px) {
       header { padding: 12px 16px; }
       .card { padding: 12px 14px; }
       .small-input { max-width: 100%; }
-      table { min-width: 980px; } /* 手机就靠横向滑动 */
+      table { min-width: 980px; }
     }
   </style>
 </head>
@@ -344,7 +353,6 @@
               </select>
             </div>
 
-            <!-- ✅ 分组标签：多标签输入 + 历史标签建议 -->
             <div class="form-group">
               <label>标签 / 分组（可多个，用逗号分隔）</label>
               <input type="text" id="account-tags" list="tag-datalist" placeholder="例如：主库, JP, US" />
@@ -374,7 +382,6 @@
               <option value="黑名单">只看黑名单</option>
             </select>
 
-            <!-- ✅ 标签筛选 -->
             <select id="account-tag-filter" class="small-input">
               <option value="">全部标签</option>
             </select>
@@ -393,7 +400,12 @@
           </div>
         </div>
 
+        <!-- ✅ 文本批量新增（新增：导入标签） -->
         <div class="form-grid" style="margin-top:6px;">
+          <div class="form-group">
+            <label>批量新增：导入标签/分组（将应用到本次新增的所有邮箱，可多个，用逗号分隔）</label>
+            <input type="text" id="account-import-tags" list="tag-datalist" placeholder="例如：JP, 新增, 12月活动" />
+          </div>
           <div class="form-group" style="grid-column:1/-1;">
             <label>从文本批量新增邮箱（每行一个邮箱地址）</label>
             <textarea id="account-import-text" placeholder="例如：&#10;aaa@example.com&#10;bbb@outlook.com"></textarea>
@@ -426,14 +438,15 @@
       <!-- 活动管理 -->
       <section id="tab-activities" class="tab-content">
         <h2>活动管理</h2>
-        <p class="sub">每期开启一个活动，可一键选择当前所有「可用」账号参与。活动结束后在“中奖录入”登记中奖账号，自动统计中奖率。</p>
+        <p class="sub">每期开启一个活动；支持“选择全部可用账号”或“批量粘贴邮箱/账号ID”加入参与名单。活动详情可查看参与账号明细与中奖列表。</p>
 
         <form id="activity-form">
           <div class="form-header-row">
             <div class="current-edit" id="activity-current-edit">当前模式：<span>新建活动</span></div>
-            <div style="font-size:12px;color:#6b7280;">参与账号可随时重新选择，不影响已录入的中奖记录。</div>
+            <div style="font-size:12px;color:#6b7280;">参与名单随时可更新；中奖录入只登记中奖账号即可。</div>
           </div>
           <input type="hidden" id="activity-edit-index" value="" />
+
           <div class="form-grid">
             <div class="form-group">
               <label>活动 ID（自动）</label>
@@ -454,6 +467,7 @@
                 <option value="已结束">已结束</option>
               </select>
             </div>
+
             <div class="form-group">
               <label>统一奖项名称（选填）</label>
               <input type="text" id="activity-prize-name" placeholder="例如：S 赏 毛绒玩偶" />
@@ -466,14 +480,37 @@
               <label>参与账号数量</label>
               <input type="text" id="activity-participants-count" readonly value="0" />
             </div>
+
             <div class="form-group" style="grid-column:1/-1;">
               <label>备注</label>
               <textarea id="activity-note" placeholder="例如：官网抽选 / 店铺现场抽签 等"></textarea>
             </div>
+
+            <!-- ✅ 新增：批量文本输入参与账号 -->
+            <div class="form-group" style="grid-column:1/-1;">
+              <label>批量添加参与账号（每行一个：邮箱 或 账号ID，例如 A0001）</label>
+              <textarea id="activity-participants-text" placeholder="示例：&#10;A0001&#10;xxx@outlook.com&#10;yyy@gmail.com"></textarea>
+            </div>
+            <div class="form-group">
+              <label>（可选）自动创建账号的标签</label>
+              <input type="text" id="activity-create-account-tags" list="tag-datalist" placeholder="例如：活动导入, 本期" />
+            </div>
+            <div class="form-group">
+              <label style="visibility:hidden;">占位</label>
+              <div class="inline-check">
+                <input type="checkbox" id="activity-auto-create-accounts" />
+                <span>不存在账号时，自动创建账号并加入参与</span>
+              </div>
+              <div class="muted" style="font-size:12px; margin-top:4px;">
+                未勾选时：只会加入“账号库里已存在”的账号，找不到的行会跳过并提示。
+              </div>
+            </div>
           </div>
+
           <div class="form-actions">
             <button type="button" class="btn-secondary" id="activity-select-all-available-btn">选择全部「可用」账号参与</button>
             <button type="button" class="btn-secondary" id="activity-clear-participants-btn">清空参与账号</button>
+            <button type="button" class="btn-secondary" id="activity-add-participants-btn">将文本加入参与名单</button>
             <span style="flex:1;"></span>
             <button type="button" class="btn-secondary" id="activity-reset-btn">新建活动</button>
             <button type="submit" class="btn-primary">保存活动</button>
@@ -613,7 +650,7 @@
     </div>
   </div>
 
-  <!-- 活动详情弹窗 -->
+  <!-- 活动详情弹窗（✅ 增加参与账号列表展示） -->
   <div id="activity-detail-modal" class="modal-backdrop">
     <div class="modal">
       <div class="modal-header">
@@ -631,11 +668,10 @@
     // ========= Supabase 配置 =========
     const SUPABASE_URL = "https://nuwqhopuszsbystlioku.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51d3Fob3B1c3pzYnlzdGxpb2t1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU0MjQ0ODIsImV4cCI6MjA4MTAwMDQ4Mn0.WzW8gnd_-CmGLRsG85ETH9PxRNT12xF6tuQiWArGo-4";
-    const DATASET_ID = "main-dataset"; // 固定一行存整套数据
+    const DATASET_ID = "main-dataset";
 
-    // 注意：不要用 const supabase = ...（会和 window.supabase 冲突/重复声明）
     let sbClient = null;
-    let cloudEnabled = true; // 云端是否可用（SDK/CDN/网络/权限/索引问题都会自动降级）
+    let cloudEnabled = true;
 
     function setCloudHint(msg) {
       const el = document.getElementById("cloud-hint");
@@ -643,14 +679,11 @@
     }
 
     async function loadSupabaseSdk() {
-      // 若已存在（可能被浏览器缓存或你之前加载过），直接通过
       if (window.supabase && window.supabase.createClient) return true;
-
       const urls = [
         "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js",
         "https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js"
       ];
-
       function loadOne(src) {
         return new Promise((resolve, reject) => {
           const s = document.createElement("script");
@@ -661,14 +694,11 @@
           document.head.appendChild(s);
         });
       }
-
       for (const u of urls) {
         try {
           await loadOne(u);
           if (window.supabase && window.supabase.createClient) return true;
-        } catch (e) {
-          // try next
-        }
+        } catch (e) {}
       }
       return false;
     }
@@ -695,25 +725,20 @@
 
     let accountSearchKeyword = "";
     let accountStatusFilter = "";
-    let accountTagFilter = ""; // ✅ 标签筛选
+    let accountTagFilter = "";
     let activitySearchKeyword = "";
     let currentActivityDetailId = null;
 
-    // ======== 标签分组（多标签）========
+    // ======== 标签（多标签）========
     function parseTags(str) {
       if (!str) return [];
       const arr = String(str)
-        .split(/[,\s，\/|]+/g)     // 支持：逗号/中文逗号/空格/斜杠/竖线
+        .split(/[,\s，\/|]+/g)
         .map(s => s.trim())
         .filter(Boolean);
-      return Array.from(new Set(arr)); // 去重
+      return Array.from(new Set(arr));
     }
-
-    function tagsToText(tags) {
-      return (Array.isArray(tags) ? tags : []).join(", ");
-    }
-
-    // 兼容旧数据：把 label 自动转成 tags
+    function tagsToText(tags) { return (Array.isArray(tags) ? tags : []).join(", "); }
     function ensureAccountTags(acc) {
       if (!acc) return;
       if (!Array.isArray(acc.tags)) {
@@ -721,18 +746,11 @@
         else acc.tags = [];
       }
     }
-
-    // 统计所有已存在标签（来自所有账号）
     function getAllTags() {
       const set = new Set();
-      accounts.forEach(a => {
-        ensureAccountTags(a);
-        (a.tags || []).forEach(t => set.add(t));
-      });
+      accounts.forEach(a => { ensureAccountTags(a); (a.tags || []).forEach(t => set.add(t)); });
       return Array.from(set).sort((a, b) => a.localeCompare(b, "zh"));
     }
-
-    // 刷新：标签建议(datalist) + 标签筛选(select)
     function refreshTagUI() {
       const all = getAllTags();
 
@@ -777,7 +795,6 @@
         wins = [];
       }
 
-      // ✅ 补齐 tags（兼容旧数据）
       accounts.forEach(ensureAccountTags);
 
       const fallbackDate = "2000-01-01T00:00:00.000Z";
@@ -795,7 +812,6 @@
       refreshTagUI();
     }
 
-    // ========= 远程 Supabase 读写（失败自动降级） =========
     async function loadDataRemote() {
       if (!cloudEnabled) return false;
       try {
@@ -807,7 +823,6 @@
           .single();
 
         if (error) {
-          // PGRST116: not found
           if (error.code !== "PGRST116") {
             console.warn("远程加载失败，降级本地模式：", error);
             cloudEnabled = false;
@@ -821,7 +836,6 @@
           activities = data.data.activities || [];
           wins = data.data.wins || [];
 
-          // ✅ 补齐 tags（兼容旧数据）
           accounts.forEach(ensureAccountTags);
 
           const fallbackDate = "2000-01-01T00:00:00.000Z";
@@ -846,11 +860,7 @@
       try {
         const sb = getSb();
         const payload = { accounts, activities, wins, updatedAt: new Date().toISOString() };
-
-        // 注意：如果你 Supabase 里仍在报 500 index row too large，
-        // 说明 dataset 表上还有对 data/jsonb 的索引（尤其 GIN/BTREE），必须删除，只保留 id 主键索引。
         const { error } = await sb.from("dataset").upsert({ id: DATASET_ID, data: payload });
-
         if (error) {
           console.warn("远程保存失败，降级本地模式：", error);
           cloudEnabled = false;
@@ -863,11 +873,7 @@
       }
     }
 
-    function saveData() {
-      saveDataLocal();
-      // 异步云端同步
-      saveDataRemote();
-    }
+    function saveData() { saveDataLocal(); saveDataRemote(); }
 
     function refreshCounts() {
       document.getElementById("accounts-count").textContent = accounts.length;
@@ -994,7 +1000,6 @@
         ensureAccountTags(acc);
 
         if (statusFilter && acc.status !== statusFilter) return;
-
         if (tagFilter) {
           if (!(acc.tags || []).includes(tagFilter)) return;
         }
@@ -1061,7 +1066,6 @@
         .sort((a, b) => (b.eventDate || b.createdAt || "").localeCompare(a.eventDate || a.createdAt || ""));
 
       const participatedActivities = activities.filter(act => (act.participants || []).includes(acc.id));
-
       const winByActivity = new Map();
       accWins.forEach(w => {
         if (!winByActivity.has(w.activityId)) winByActivity.set(w.activityId, []);
@@ -1200,7 +1204,6 @@
             email,
             status,
             tags,
-            // 可选：保留 label 以兼容旧展示（不影响 tags）
             label: tags.join(" / "),
             note,
             createdAt: new Date().toISOString()
@@ -1226,12 +1229,7 @@
 
       document.getElementById("account-search").addEventListener("input", e => { accountSearchKeyword = e.target.value || ""; renderAccountsTable(); });
       document.getElementById("account-status-filter").addEventListener("change", e => { accountStatusFilter = e.target.value || ""; renderAccountsTable(); });
-
-      // ✅ 标签筛选
-      document.getElementById("account-tag-filter").addEventListener("change", e => {
-        accountTagFilter = e.target.value || "";
-        renderAccountsTable();
-      });
+      document.getElementById("account-tag-filter").addEventListener("change", e => { accountTagFilter = e.target.value || ""; renderAccountsTable(); });
 
       setupAccountBatchActions();
       setupAccountImport();
@@ -1283,7 +1281,8 @@
       });
     }
 
-    function bulkAddEmailsFromLines(lines, defaultNote) {
+    // ✅ 批量新增邮箱（支持 tags）
+    function bulkAddEmailsFromLines(lines, defaultNote, defaultTags) {
       const nowIso = new Date().toISOString();
       let imported = 0, skipped = 0;
 
@@ -1293,8 +1292,18 @@
         email = email.trim();
         if (!email || !email.includes("@")) { skipped++; return; }
         if (accounts.some(a => (a.email || "").toLowerCase() === email.toLowerCase())) { skipped++; return; }
+
         const id = generateAccountId();
-        accounts.push({ id, email, status: "可用", tags: [], label: "", note: defaultNote || "", createdAt: nowIso });
+        const tags = Array.isArray(defaultTags) ? [...defaultTags] : [];
+        accounts.push({
+          id,
+          email,
+          status: "可用",
+          tags,
+          label: tags.join(" / "),
+          note: defaultNote || "",
+          createdAt: nowIso
+        });
         imported++;
       });
 
@@ -1303,26 +1312,34 @@
 
     function setupAccountImport() {
       const fileInput = document.getElementById("account-import-file");
+
       document.getElementById("account-import-btn").addEventListener("click", () => {
         const file = fileInput.files && fileInput.files[0];
         if (!file) return alert("请先选择要导入的 CSV 文件。（建议：只导出一列邮箱，CSV UTF-8）");
+
+        const importTags = parseTags(document.getElementById("account-import-tags").value.trim());
 
         const reader = new FileReader();
         reader.onload = e => {
           const text = e.target.result || "";
           const lines = String(text).split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-          const { imported, skipped } = bulkAddEmailsFromLines(lines, "CSV 导入创建");
+          const { imported, skipped } = bulkAddEmailsFromLines(lines, "CSV 导入创建", importTags);
           saveData(); renderAccountsTable(); renderActivitiesTable(); renderStats();
           alert(`CSV 导入完成：成功导入 ${imported} 条；跳过 ${skipped} 条（格式错误或邮箱重复）。`);
         };
         reader.readAsText(file, "utf-8");
       });
 
+      // ✅ 文本批量新增（应用导入标签）
       document.getElementById("account-import-text-btn").addEventListener("click", () => {
         const text = document.getElementById("account-import-text").value.trim();
         if (!text) return alert("请先在文本框中粘贴邮箱列表（每行一个邮箱）。");
+
+        const importTags = parseTags(document.getElementById("account-import-tags").value.trim());
+
         const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-        const { imported, skipped } = bulkAddEmailsFromLines(lines, "文本导入创建");
+        const { imported, skipped } = bulkAddEmailsFromLines(lines, "文本导入创建", importTags);
+
         saveData(); renderAccountsTable(); renderActivitiesTable(); renderStats();
         document.getElementById("account-import-text").value = "";
         alert(`文本导入完成：成功导入 ${imported} 条；跳过 ${skipped} 条（格式错误或邮箱重复）。`);
@@ -1348,6 +1365,10 @@
       document.getElementById("activity-prize-name").value = "";
       document.getElementById("activity-prize-level").value = "";
       document.getElementById("activity-note").value = "";
+      document.getElementById("activity-participants-text").value = "";
+      document.getElementById("activity-create-account-tags").value = "";
+      document.getElementById("activity-auto-create-accounts").checked = false;
+
       activityFormParticipants = [];
       updateActivityParticipantsCountInput();
       updateActivityCurrentEdit("新建活动");
@@ -1362,9 +1383,89 @@
       document.getElementById("activity-prize-name").value = act.prizeName || "";
       document.getElementById("activity-prize-level").value = act.prizeLevel || "";
       document.getElementById("activity-note").value = act.note || "";
+      document.getElementById("activity-participants-text").value = "";
       activityFormParticipants = Array.isArray(act.participants) ? [...act.participants] : [];
       updateActivityParticipantsCountInput();
       updateActivityCurrentEdit(`编辑活动 ${act.id}`);
+    }
+
+    // ✅ 新增：从文本批量加入参与名单（支持邮箱/账号ID；可选自动创建账号）
+    function addParticipantsFromTextToForm() {
+      const raw = document.getElementById("activity-participants-text").value.trim();
+      if (!raw) return alert("请先在“批量添加参与账号”文本框中粘贴邮箱或账号ID。");
+
+      const autoCreate = document.getElementById("activity-auto-create-accounts").checked;
+      const createTags = parseTags(document.getElementById("activity-create-account-tags").value.trim());
+
+      const lines = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+
+      let addedExisting = 0;
+      let created = 0;
+      let skippedInvalid = 0;
+      let skippedNotFound = 0;
+      let skippedDuplicate = 0;
+
+      const actName = (document.getElementById("activity-name").value || "").trim();
+
+      lines.forEach(line => {
+        const key = line.toLowerCase();
+
+        // 1) 优先当作账号ID
+        let acc = accounts.find(a => (a.id || "").toLowerCase() === key);
+
+        // 2) 再当作邮箱
+        if (!acc && line.includes("@")) {
+          acc = accounts.find(a => (a.email || "").toLowerCase() === key);
+        }
+
+        // 3) 找不到：可选自动创建（仅对邮箱）
+        if (!acc) {
+          if (autoCreate && line.includes("@")) {
+            const email = line.trim();
+            if (accounts.some(a => (a.email || "").toLowerCase() === email.toLowerCase())) {
+              // 极端：刚好重复
+              skippedDuplicate++;
+              return;
+            }
+            const id = generateAccountId();
+            accounts.push({
+              id,
+              email,
+              status: "可用",
+              tags: [...createTags],
+              label: createTags.join(" / "),
+              note: actName ? `活动参与导入：${actName}` : "活动参与导入",
+              createdAt: new Date().toISOString()
+            });
+            acc = accounts.find(a => a.id === id);
+            created++;
+          } else {
+            // 不创建就跳过
+            if (!line || (!line.includes("@") && !/^A\d{4}$/i.test(line))) skippedInvalid++;
+            else skippedNotFound++;
+            return;
+          }
+        }
+
+        // 加入参与名单（去重）
+        if (activityFormParticipants.includes(acc.id)) { skippedDuplicate++; return; }
+        activityFormParticipants.push(acc.id);
+        addedExisting++;
+      });
+
+      updateActivityParticipantsCountInput();
+      refreshTagUI();
+      renderAccountsTable(); // 如果自动创建，会刷新列表
+      saveData();
+
+      const msg =
+        `参与名单更新完成：\n` +
+        `- 新增参与：${addedExisting} 个\n` +
+        `- 自动创建账号：${created} 个\n` +
+        `- 跳过（重复参与）：${skippedDuplicate} 行\n` +
+        `- 跳过（未找到账号）：${skippedNotFound} 行\n` +
+        `- 跳过（格式无效）：${skippedInvalid} 行`;
+      alert(msg);
     }
 
     function renderActivitiesTable() {
@@ -1414,6 +1515,7 @@
       updateActivityOptionsForWinner();
     }
 
+    // ✅ 活动详情：新增参与账号列表 + 参与数量
     function openActivityDetailModal(activityId) {
       const modal = document.getElementById("activity-detail-modal");
       const titleEl = document.getElementById("activity-detail-title");
@@ -1429,8 +1531,13 @@
       }
 
       const participants = act.participants || [];
+      const participantAccounts = participants
+        .map(pid => accounts.find(a => a.id === pid))
+        .filter(Boolean);
+
       const winsOfAct = wins.filter(w => w.activityId === act.id)
         .sort((a, b) => (b.eventDate || b.createdAt || "").localeCompare(a.eventDate || a.createdAt || ""));
+
       const pCount = participants.length;
       const wCount = winsOfAct.length;
       const rate = pCount > 0 ? ((wCount / pCount) * 100).toFixed(1) + "%" : "-";
@@ -1440,20 +1547,53 @@
 
       let html = `
         <div style="margin-bottom:6px;">状态：${act.status || ""} ｜ 日期：${act.date || "-"} ｜ 创建：${formatDateTime(act.createdAt)}</div>
-        <div style="margin-bottom:8px;font-size:12px;color:#6b7280;">参与账号：${pCount} 个 ｜ 中奖账号：${wCount} 个 ｜ 中奖率：${rate}</div>
-        <h4 style="margin:4px 0;font-size:13px;">中奖账户列表</h4>
+        <div style="margin-bottom:10px;font-size:12px;color:#6b7280;">
+          参与账号：${pCount} 个 ｜ 中奖账号：${wCount} 个 ｜ 中奖率：${rate}
+        </div>
+
+        <h4 style="margin:6px 0 6px;font-size:13px;">参与账号列表（${pCount}）</h4>
       `;
+
+      if (!participantAccounts.length) {
+        html += `<div class="muted" style="margin-bottom:10px;">该活动尚未添加任何参与账号。</div>`;
+      } else {
+        html += `
+          <div class="table-wrap" style="border:none;">
+            <table style="min-width:860px;">
+              <thead>
+                <tr><th>账号ID</th><th>邮箱</th><th>状态</th><th>标签</th></tr>
+              </thead>
+              <tbody>
+        `;
+        participantAccounts.forEach(acc => {
+          ensureAccountTags(acc);
+          const tagsHtml = (acc.tags || []).length
+            ? (acc.tags || []).map(t => `<span class="tag">${t}</span>`).join(" ")
+            : `<span class="muted">-</span>`;
+          html += `
+            <tr>
+              <td>${acc.id}</td>
+              <td>${acc.email || ""}</td>
+              <td>${acc.status || ""}</td>
+              <td>${tagsHtml}</td>
+            </tr>
+          `;
+        });
+        html += `</tbody></table></div>`;
+      }
+
+      html += `<h4 style="margin:12px 0 6px;font-size:13px;">中奖账户列表（${wCount}）</h4>`;
 
       if (!winsOfAct.length) {
         html += `<div class="muted">该活动当前还没有任何中奖记录。</div>`;
       } else {
         html += `
           <div class="table-wrap" style="border:none;">
-          <table style="min-width:760px;">
-            <thead>
-              <tr><th>中奖ID</th><th>账号</th><th>日期</th><th>奖项</th><th>备注</th></tr>
-            </thead>
-            <tbody>
+            <table style="min-width:860px;">
+              <thead>
+                <tr><th>中奖ID</th><th>账号</th><th>日期</th><th>奖项</th><th>备注</th></tr>
+              </thead>
+              <tbody>
         `;
         winsOfAct.forEach(w => {
           const acc = accounts.find(a => a.id === w.accountId);
@@ -1524,6 +1664,11 @@
         updateActivityParticipantsCountInput();
       });
 
+      // ✅ 新增按钮：将文本加入参与名单
+      document.getElementById("activity-add-participants-btn").addEventListener("click", () => {
+        addParticipantsFromTextToForm();
+      });
+
       document.getElementById("activity-form").addEventListener("submit", e => {
         e.preventDefault();
         const editIndex = document.getElementById("activity-edit-index").value.trim();
@@ -1538,12 +1683,21 @@
 
         if (editIndex === "") {
           const id = generateActivityId();
-          activities.push({ id, name, date, status, prizeName, prizeLevel, note, participants: [...activityFormParticipants], createdAt: new Date().toISOString() });
+          activities.push({
+            id, name, date, status, prizeName, prizeLevel, note,
+            participants: [...activityFormParticipants],
+            createdAt: new Date().toISOString()
+          });
         } else {
           const idx = parseInt(editIndex, 10);
           if (!activities[idx]) return;
           const act = activities[idx];
-          act.name = name; act.date = date; act.status = status; act.prizeName = prizeName; act.prizeLevel = prizeLevel; act.note = note;
+          act.name = name;
+          act.date = date;
+          act.status = status;
+          act.prizeName = prizeName;
+          act.prizeLevel = prizeLevel;
+          act.note = note;
           act.participants = [...activityFormParticipants];
           if (!act.createdAt) act.createdAt = new Date().toISOString();
         }
@@ -1554,7 +1708,10 @@
         resetActivityForm();
       });
 
-      document.getElementById("activity-search").addEventListener("input", e => { activitySearchKeyword = e.target.value || ""; renderActivitiesTable(); });
+      document.getElementById("activity-search").addEventListener("input", e => {
+        activitySearchKeyword = e.target.value || "";
+        renderActivitiesTable();
+      });
     }
 
     function updateActivityOptionsForWinner() {
@@ -1823,7 +1980,6 @@
           activities = Array.isArray(obj.activities) ? obj.activities : [];
           wins = Array.isArray(obj.wins) ? obj.wins : [];
 
-          // ✅ 补齐 tags（兼容旧数据）
           accounts.forEach(ensureAccountTags);
 
           saveData();
@@ -1875,33 +2031,28 @@
       function unlockAndStart() {
         overlay.style.display = "none";
         localStorage.setItem("acc_act_pass_ok", "1");
-
-        Promise.resolve()
-          .then(startAppCallback)
-          .catch(err => {
-            console.error(err);
-            alert("已进入系统，但云端/初始化出现问题，将使用本机缓存继续。");
-            try {
-              loadDataLocal();
-              setupTabs();
-              setupAccountForm();
-              setupActivityForm();
-              setupWinnerForm();
-              setupBackup();
-              initModal();
-              renderAccountsTable();
-              renderActivitiesTable();
-              renderWinsTable();
-              renderStats();
-              updateExportText();
-              resetAccountForm();
-              resetActivityForm();
-              resetWinnerForm();
-              refreshTagUI();
-            } catch (e) {
-              console.error(e);
-            }
-          });
+        Promise.resolve().then(startAppCallback).catch(err => {
+          console.error(err);
+          alert("已进入系统，但云端/初始化出现问题，将使用本机缓存继续。");
+          try {
+            loadDataLocal();
+            setupTabs();
+            setupAccountForm();
+            setupActivityForm();
+            setupWinnerForm();
+            setupBackup();
+            initModal();
+            renderAccountsTable();
+            renderActivitiesTable();
+            renderWinsTable();
+            renderStats();
+            updateExportText();
+            resetAccountForm();
+            resetActivityForm();
+            resetWinnerForm();
+            refreshTagUI();
+          } catch (e) { console.error(e); }
+        });
       }
 
       function check() {
@@ -1921,10 +2072,8 @@
 
     // ========= 初始化 =========
     async function initApp() {
-      // 先尝试加载 Supabase SDK（失败也能继续本地）
       setCloudHint("正在检测云端同步组件（Supabase）...");
       const sdkOk = await loadSupabaseSdk();
-
       if (!sdkOk) {
         cloudEnabled = false;
         setCloudHint("提示：云端同步组件加载失败（可能网络/被拦），系统将使用本机缓存。");
@@ -1932,7 +2081,6 @@
         setCloudHint("云端同步组件已就绪：将尝试从 Supabase 拉取数据。");
       }
 
-      // 云端优先，失败则本地兜底
       const remoteOk = await loadDataRemote();
       if (!remoteOk) loadDataLocal();
 
