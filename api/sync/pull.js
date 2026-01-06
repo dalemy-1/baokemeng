@@ -1,15 +1,10 @@
-// api/sync/pull.js (ESM)
+// api/sync/pull.js (ESM) - 只拉三张表：ops_accounts / ops_activities / ops_activity_entries
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from "@supabase/supabase-js";
 
 function applyCors(req, res) {
-  // 现在你全局 vercel.json 也会给 acao:*，这里保留不冲突
-  const allowOrigin = "https://baokemeng-orcin.vercel.app";
-  const origin = req.headers.origin;
-
-  if (origin === allowOrigin) {
-    res.setHeader("Access-Control-Allow-Origin", allowOrigin);
-  }
+  // 你全局 vercel.json 也在加 header，这里不冲突
+  res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader(
@@ -53,49 +48,41 @@ export default async function handler(req, res) {
   try {
     const supabase = getSupabase();
 
-    // ======= 按你 Supabase 的真实表名 =======
-const T_ACCOUNTS = "ops_accounts";
-const T_CAMPAIGNS = "ops_activities";
-const T_WINS = "ops_activity_entries";
-// 你目前没有 deletes 表，先关掉
-const T_DELETES = null;
-// =======================================
+    // ✅ 你的真实表名
+    const T_ACCOUNTS = "ops_accounts";
+    const T_ACTIVITIES = "ops_activities";
+    const T_ENTRIES = "ops_activity_entries";
 
-
-    // 可选：支持 ?since=ISO 拉增量。你先不用增量也行，先全量覆盖跑通。
     const since = req.query?.since ? String(req.query.since) : null;
 
-    const sel = since
-      ? (table) => supabase.from(table).select("*").gte("updated_at", since)
-      : (table) => supabase.from(table).select("*");
+    const query = (table) => {
+      // 全量（推荐先跑通）
+      if (!since) return supabase.from(table).select("*");
+      // 增量（可选：要求表里有 updated_at 字段）
+      return supabase.from(table).select("*").gte("updated_at", since);
+    };
 
-    const [a, c, w, d] = await Promise.all([
-      sel(T_ACCOUNTS),
-      sel(T_CAMPAIGNS),
-      sel(T_WINS),
-      sel(T_DELETES),
+    const [a, b, c] = await Promise.all([
+      query(T_ACCOUNTS),
+      query(T_ACTIVITIES),
+      query(T_ENTRIES),
     ]);
 
-    // 任意一个查询失败都抛错
-    for (const r of [a, c, w, d]) {
+    for (const r of [a, b, c]) {
       if (r.error) throw r.error;
     }
 
     res.status(200).json({
-  ok: true,
-  pulled_at: new Date().toISOString(),
-  mode: since ? "delta" : "full",
-  data: {
-    accounts: a.data || [],
-    activities: c.data || [],
-    entries: w.data || [],
-  },
-});
-
-  } catch (e) {
-    res.status(500).json({
-      ok: false,
-      error: String(e?.message || e),
+      ok: true,
+      pulled_at: new Date().toISOString(),
+      mode: since ? "delta" : "full",
+      data: {
+        accounts: a.data || [],
+        activities: b.data || [],
+        entries: c.data || [],
+      },
     });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
   }
 }
