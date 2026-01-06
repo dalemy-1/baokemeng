@@ -53,12 +53,14 @@ export default async function handler(req, res) {
   try {
     const supabase = getSupabase();
 
-    // ======= 你可按实际表名修改这里（默认建议结构） =======
-    const T_ACCOUNTS = "accounts";
-    const T_CAMPAIGNS = "campaigns";
-    const T_WINS = "wins";
-    const T_DELETES = "deletes";
-    // =====================================================
+    // ======= 按你 Supabase 的真实表名 =======
+const T_ACCOUNTS = "ops_accounts";
+const T_CAMPAIGNS = "ops_activities";
+const T_WINS = "ops_activity_entries";
+// 你目前没有 deletes 表，先关掉
+const T_DELETES = null;
+// =======================================
+
 
     // 可选：支持 ?since=ISO 拉增量。你先不用增量也行，先全量覆盖跑通。
     const since = req.query?.since ? String(req.query.since) : null;
@@ -80,16 +82,16 @@ export default async function handler(req, res) {
     }
 
     res.status(200).json({
-      ok: true,
-      pulled_at: new Date().toISOString(),
-      mode: since ? "delta" : "full",
-      data: {
-        accounts: a.data || [],
-        campaigns: c.data || [],
-        wins: w.data || [],
-        deletes: d.data || [],
-      },
-    });
+  ok: true,
+  pulled_at: new Date().toISOString(),
+  mode: since ? "delta" : "full",
+  data: {
+    accounts: a.data || [],
+    activities: c.data || [],
+    entries: w.data || [],
+  },
+});
+
   } catch (e) {
     res.status(500).json({
       ok: false,
