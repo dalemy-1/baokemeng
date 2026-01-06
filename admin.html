@@ -459,6 +459,109 @@
     });
   }
 
+// ===== Cloud Sync Helpers (v21) =====
+function uuidv4(){
+  try{
+    if(crypto && crypto.randomUUID) return crypto.randomUUID();
+  }catch(e){}
+  // fallback
+  var rnd = new Uint8Array(16);
+  try{ crypto.getRandomValues(rnd); }catch(e){
+    for(var i=0;i<16;i++) rnd[i] = Math.floor(Math.random()*256);
+  }
+  rnd[6] = (rnd[6] & 0x0f) | 0x40;
+  rnd[8] = (rnd[8] & 0x3f) | 0x80;
+  var b = Array.from(rnd).map(x=>x.toString(16).padStart(2,'0')).join('');
+  return b.slice(0,8)+'-'+b.slice(8,12)+'-'+b.slice(12,16)+'-'+b.slice(16,20)+'-'+b.slice(20);
+}
+
+// 从本地 IndexedDB 导出快照（用于 /api/sync/push 的 upserts）
+async function dumpLocalSnapshot(){
+  return new Promise(function(resolve, reject){
+    getAll(STORE_ACC, function(e1, acc){
+      if(e1) return reject(e1);
+      getAll(STORE_ACT, function(e2, act){
+        if(e2) return reject(e2);
+
+        // 确保云端主键 id 存在（本地 keyPath=account，云端 keyPath=id）
+        acc = (acc||[]).map(function(a){
+          var o = Object.assign({}, a);
+          if(!o.id) o.id = uuidv4();
+          if(!o.updated_at) o.updated_at = new Date().toISOString();
+          if(o.win_count == null) o.win_count = 0;
+          return o;
+        });
+
+        act = (act||[]).map(function(a){
+          var o = Object.assign({}, a);
+          if(!o.id) o.id = uuidv4();
+          if(!o.updated_at) o.updated_at = new Date().toISOString();
+          return o;
+        });
+
+        resolve({ accounts: acc, activities: act, entries: [] });
+      });
+    });
+  });
+}
+
+// 将云端数据应用到本地（覆盖/合并）
+// mode: 'overwrite' = 覆盖（清空后写入）；'merge' = 合并（逐条 put / delete）
+function applyCloudToLocal(resp, mode, cb){
+  try{
+    var data = resp && resp.data ? resp.data : resp;
+    var acc = (data && data.accounts) ? data.accounts : [];
+    var act = (data && data.activities) ? data.activities : [];
+
+    function filterNotDeleted(rows){ return (rows||[]).filter(function(r){ return !r || !r.deleted_at; }); }
+    function onlyDeleted(rows){ return (rows||[]).filter(function(r){ return r && r.deleted_at; }); }
+
+    if(mode === 'overwrite'){
+      clearStore(STORE_ACC, function(e1){
+        if(e1) return cb(e1);
+        clearStore(STORE_ACT, function(e2){
+          if(e2) return cb(e2);
+
+          // 先写未删除的
+          putMany(STORE_ACC, filterNotDeleted(acc), function(e3){
+            if(e3) return cb(e3);
+            putMany(STORE_ACT, filterNotDeleted(act), function(e4){
+              if(e4) return cb(e4);
+              cb(null, { accounts: filterNotDeleted(acc).length, activities: filterNotDeleted(act).length });
+            });
+          });
+        });
+      });
+      return;
+    }
+
+    // merge
+    putMany(STORE_ACC, filterNotDeleted(acc), function(e5){
+      if(e5) return cb(e5);
+
+      // 对已删除的：本地执行 delete
+      var delAcc = onlyDeleted(acc);
+      (function nextAcc(i){
+        if(i>=delAcc.length) return afterAcc();
+        delObj(STORE_ACC, delAcc[i].account, function(){ nextAcc(i+1); });
+      })(0);
+
+      function afterAcc(){
+        putMany(STORE_ACT, filterNotDeleted(act), function(e6){
+          if(e6) return cb(e6);
+          var delAct = onlyDeleted(act);
+          (function nextAct(i){
+            if(i>=delAct.length) return cb(null, { accounts: filterNotDeleted(acc).length, activities: filterNotDeleted(act).length, deleted_activities: delAct.length });
+            delObj(STORE_ACT, delAct[i].id, function(){ nextAct(i+1); });
+          })(0);
+        });
+      }
+    });
+  }catch(err){
+    cb(err);
+  }
+}
+
   function deleteAllData(cb){
     // 关闭当前连接并删除整个 IndexedDB（最干净，避免残留）
     try{ if(db) db.close(); }catch(e){}
@@ -1634,16 +1737,13 @@ $('actSearch').value = '';
   
 
 // ===== Cloud Sync Status Helper (global) =====
-// 修复：setStatus 未定义导致按钮点击报错
 window.setStatus = function(msg){
   msg = String(msg||'');
   try{
     var el = document.getElementById('syncStatus');
     if(el) el.textContent = msg;
   }catch(e){}
-  try{
-    if(typeof toast === 'function' && msg) toast(msg);
-  }catch(e){}
+  try{ if(typeof toast === 'function' && msg) toast(msg); }catch(e){}
   try{ console.log('[SYNC]', msg); }catch(e){}
 };
 
@@ -1678,13 +1778,13 @@ function normalizeBase(input){
   }
 
   function getSyncCfg(){
-    // baseUrl 允许留空：同域（推荐 Vercel 同域 / Next.js）
-    var base = normalizeBase(q('syncBaseUrl').value);
-    var token = sanitizeToken(q('syncAdminToken').value);
-    if(!base) base = '';
-    if(!token) throw new Error('请填写管理员同步口令（x-admin-token）');
-    return { baseUrl: base, token: token };
-  }
+  // baseUrl 允许留空：同域（推荐）
+  var base = normalizeBase(q('syncBaseUrl').value);
+  var token = sanitizeToken(q('syncAdminToken').value);
+  if(!base) base = '';
+  if(!token) throw new Error('请填写管理员同步口令（x-admin-token）');
+  return { baseUrl: base, token: token };
+}
 
   async function apiFetch(path, opt){
     opt = opt || {};
@@ -1737,16 +1837,19 @@ function normalizeBase(input){
     try{
       if(!confirm('将用云端数据覆盖本地 IndexedDB（本地更改会被覆盖）。继续？')) return;
       setStatus('拉取中…');
-      var j = await apiFetch('/api/sync/pull', { method:'POST', body:'{}', headers:{'Content-Type':'application/json'} });
+      var j = await apiFetch('/api/sync/pull', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ since: null, limit: 2000 }) });
 
       await new Promise(function(resolve, reject){
-        applyCloudToLocal(j, function(err, stats){
+        applyCloudToLocal(j, 'overwrite', function(err, stats){
           if(err) return reject(err);
           resolve(stats);
         });
       });
 
-      setStatus('拉取完成：' + (j.pulled_at||j.server_time||'ok'));
+      try{ if(j && j.server_ts) localStorage.setItem('OPS_SYNC_LAST_TS_V1', j.server_ts); }catch(e){}
+      var ca = (j&&j.data&&j.data.accounts)? j.data.accounts.length : 0;
+      var ct = (j&&j.data&&j.data.activities)? j.data.activities.length : 0;
+      setStatus('拉取完成：accounts=' + ca + ' activities=' + ct + ' @ ' + (j.server_ts||''));
       alert('拉取完成');
     }catch(e){
       setStatus('拉取失败：' + (e.message||String(e)));
@@ -1761,30 +1864,46 @@ function normalizeBase(input){
 
       var snapshot = await dumpLocalSnapshot();
 
-      var payload = {
-        snapshot: snapshot,
-        deletes: (function(){
-          try{
-            var s = localStorage.getItem('OPS_SYNC_DELETES_V1') || '[]';
-            var arr = JSON.parse(s);
-            if(Array.isArray(arr) && arr.length){
-              return { activities: arr };
-            }
-          }catch(e){}
-          return { activities: [] };
-        })()
-      };
-
-      var j = await apiFetch('/api/sync/push', {
-        method: 'POST',
-        headers: { 'Content-Type':'application/json' },
-        body: JSON.stringify(payload)
+      // v21 API: payload = { upserts, deletes[] }
+var deletesArr = [];
+try{
+  var s = localStorage.getItem('OPS_SYNC_DELETES_V1') || '[]';
+  var arr = JSON.parse(s);
+  if(Array.isArray(arr)){
+    arr.forEach(function(x){
+      if(!x) return;
+      var id = x.id || x.activity_id || x.key;
+      if(!id) return;
+      deletesArr.push({
+        table: 'ops_activities',
+        id: id,
+        deleted_at: x.deleted_at || new Date().toISOString(),
+        op_id: x.op_id || x.op || null
       });
+    });
+  }
+}catch(e){}
 
-      setStatus('推送完成：账号 ' + (j.received?.accounts ?? 0) + '，活动 ' + (j.received?.activities ?? 0) + '，记录 ' + (j.received?.entries ?? 0) + '（删除活动 ' + (j.deleted?.activities ?? 0) + '）');
-      try{ localStorage.setItem('OPS_SYNC_DELETES_V1','[]'); }catch(e){}
-      alert('推送完成');
-    }catch(e){
+var payload = {
+  upserts: snapshot,
+  deletes: deletesArr
+};
+
+var j = await apiFetch('/api/sync/push', {
+  method: 'POST',
+  headers: { 'Content-Type':'application/json' },
+  body: JSON.stringify(payload)
+});
+
+// v21 response
+try{ if(j && j.server_ts) localStorage.setItem('OPS_SYNC_LAST_TS_V1', j.server_ts); }catch(e){}
+try{ localStorage.setItem('OPS_SYNC_DELETES_V1','[]'); }catch(e){}
+var a = (j&&j.applied&&typeof j.applied.accounts==='number') ? j.applied.accounts : 0;
+var b = (j&&j.applied&&typeof j.applied.activities==='number') ? j.applied.activities : 0;
+var d = (j&&j.applied&&typeof j.applied.deletes==='number') ? j.applied.deletes : 0;
+setStatus('推送完成：applied accounts=' + a + ' activities=' + b + ' deletes=' + d + ' @ ' + (j.server_ts||''));
+alert('推送完成');
+}catch(e){
       setStatus('推送失败：' + (e.message||String(e)));
       alert(e.message||String(e));
     }
