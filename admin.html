@@ -1,0 +1,1815 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>账号-活动-中奖统计系统 v20.3（账号库列表样式修复）</title>
+  <style>
+    :root{
+      --bg:#f6f8fb;
+      --card:#ffffff;
+      --ink:#0f172a;
+      --muted:#64748b;
+      --line:#e6ebf2;
+      --brand:#2563eb;
+      --brand2:#0ea5e9;
+      --danger:#ef4444;
+      --ok:#16a34a;
+      --warn:#f59e0b;
+      --shadow: 0 18px 50px rgba(15,23,42,.08);
+      --radius:14px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",Arial;color:var(--ink);background:linear-gradient(180deg,#0b2a4a 0,#0b2a4a 120px,var(--bg) 120px)}
+    .topbar{padding:18px 22px 14px;color:#fff}
+    .title{font-size:22px;font-weight:900;letter-spacing:.2px}
+    .build{margin-top:6px;font-size:12px;opacity:.85}
+    .tabs{margin-top:14px;display:flex;gap:10px;flex-wrap:wrap}
+    .tab{border:0;border-radius:999px;padding:10px 14px;font-weight:700;cursor:pointer;background:rgba(255,255,255,.12);color:#fff}
+    .tab.active{background:#fff;color:#0b2a4a}
+    .wrap{padding:18px 18px 34px}
+    .panel{max-width:1240px;margin:0 auto;background:var(--card);border:1px solid rgba(255,255,255,.25);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+    .panelHead{padding:16px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .panelTitle{font-weight:900}
+    .spacer{flex:1}
+    .btn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 12px;font-weight:700;cursor:pointer}
+    .btn.primary{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;border-color:transparent}
+    .btn.danger{background:var(--danger);color:#fff;border-color:transparent}
+    .btn.ghost{background:#fff}
+    .btn:disabled{opacity:.55;cursor:not-allowed}
+    .body{padding:16px}
+    .grid2{display:grid;grid-template-columns: 1.1fr .9fr;gap:14px}
+    @media(max-width:980px){.grid2{grid-template-columns:1fr}}
+    .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px}
+    .muted{color:var(--muted)}
+    .small{font-size:12px}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .input, select, textarea{border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;outline:none}
+    .input:focus, select:focus, textarea:focus{border-color:#c7d2fe;box-shadow:0 0 0 4px rgba(99,102,241,.12)}
+    textarea{min-height:110px;width:100%;resize:vertical}
+    table{width:100%;border-collapse:separate;border-spacing:0}
+    th,td{padding:10px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:13px;vertical-align:top}
+    th{background:#f7f9fc;color:#334155;font-weight:800;position:sticky;top:0;z-index:1}
+    .alink{color:var(--brand);font-weight:800;text-decoration:none;cursor:pointer}
+    .badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:12px;font-weight:800}
+    .dot{width:8px;height:8px;border-radius:999px;background:#cbd5e1}
+    .dot.ok{background:var(--ok)}
+    .dot.warn{background:var(--warn)}
+    .dot.danger{background:var(--danger)}
+    .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:22px;background:#111827;color:#fff;padding:10px 14px;border-radius:999px;font-weight:700;font-size:13px;box-shadow:0 20px 50px rgba(0,0,0,.25);display:none;z-index:99999}
+    /* modal */
+    .hidden{display:none !important}
+    .modalOverlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:9999}
+    .modalCard{width:min(980px,96vw);max-height:88vh;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 30px 90px rgba(0,0,0,.35);border:1px solid rgba(0,0,0,.06);display:flex;flex-direction:column}
+    .modalHead{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:flex-start;background:linear-gradient(#fff,#fbfcff)}
+    .modalTitle{font-weight:900}
+    .modalBody{padding:14px 16px;overflow:auto}
+    .modalFooter{padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:10px;align-items:center}
+    .kv{display:grid;grid-template-columns:180px 1fr;gap:10px 14px}
+
+    .kv4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px 12px}
+    @media(max-width:980px){.kv4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:560px){.kv4{grid-template-columns:1fr}}
+    .field{border:1px solid var(--line);background:#fff;border-radius:12px;padding:10px 10px}
+    .field .lbl{font-size:12px;color:var(--muted);margin-bottom:6px}
+    .field .val{min-height:22px;white-space:pre-wrap;word-break:break-word}
+    .field .val.edit{outline:none;border-radius:8px;padding:6px 8px;border:1px dashed rgba(59,130,246,.35);background:rgba(59,130,246,.06)}
+
+    .k{padding-top:8px;color:var(--muted);font-size:12px}
+    .v{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff;cursor:pointer;word-break:break-all}
+    .v.edit{cursor:text}
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="title">账号-活动-中奖统计系统 v20.1（账号库列表样式修复）</div>
+    <div class="build">BUILD: v20.2 · 修复：点击无反应（去除 async/危险替换）· 账号详情弹窗强制 · 活动卡片/进入/返回稳定</div>
+    <div class="tabs">
+      <button class="tab active" id="tabImport">批量导入</button>
+      <button class="tab" id="tabAccounts">账号库</button>
+      <button class="tab" id="tabActivities">活动管理</button>
+      <button class="tab" id="tabBackup">备份/导出</button>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="panel" id="panel">
+      <!-- IMPORT -->
+      <div id="viewImport">
+        <div class="panelHead">
+          <div class="panelTitle">批量导入账号（CSV）</div>
+          <div class="spacer"></div>
+          <button class="btn" id="btnDownloadTpl">导出CSV模板</button>
+        </div>
+        <div class="body grid2">
+          <div class="card">
+            <div class="row">
+              <input type="file" id="fileCsv" accept=".csv,text/csv" class="input" style="max-width:420px"/>
+              <button class="btn primary" id="btnParseCsv">解析预览</button>
+              <button class="btn primary" id="btnImportCsv" disabled>确认导入</button>
+            </div>
+            <div class="muted small" style="margin-top:8px">
+              若中文乱码：请用 Excel “另存为 CSV UTF-8（逗号分隔）”。本页会自动识别 UTF-8 / UTF-8 BOM / GBK（尽力）。
+            </div>
+            <div style="margin-top:12px;overflow:auto;border:1px solid var(--line);border-radius:12px">
+              <table>
+                <thead><tr id="csvHead"></tr></thead>
+                <tbody id="csvBody"><tr><td class="muted">请先选择 CSV 文件并点击“解析预览”。</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="panelTitle">导入结果</div>
+            <div class="muted small" style="margin-top:6px">导入会以“账户”去重：已存在则更新字段并刷新更新时间。</div>
+            <div style="margin-top:10px" class="row">
+              <div class="badge"><span class="dot"></span>总账号：<span id="statAcc">0</span></div>
+              <div class="badge"><span class="dot ok"></span>本次新增：<span id="statAdd">0</span></div>
+              <div class="badge"><span class="dot warn"></span>本次更新：<span id="statUpd">0</span></div>
+            </div>
+            <div class="muted small" style="margin-top:10px" id="importMsg">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ACCOUNTS -->
+      <div id="viewAccounts" class="hidden">
+        <div class="panelHead">
+          <div class="panelTitle">账号库</div>
+          <div class="badge"><span class="dot"></span>总账号：<span id="accCount">0</span></div>
+          <div class="spacer"></div>
+          <input id="accSearch" class="input" placeholder="搜索：账户/标签/状态..." style="min-width:320px"/>
+          <select id="accTagFilter" class="input" style="min-width:180px">
+            <option value="__ALL__">全部标签</option>
+          </select>
+          <select id="accPerCol" class="input">
+            <option value="100">每列100</option>
+            <option value="200">每列200</option>
+            <option value="500">每列500</option>
+          </select>
+          <button class="btn" id="accReset">重置</button>
+        </div>
+        <div class="body">
+          <div class="row" style="margin-bottom:10px">
+            <div class="muted small" id="accPageInfo">—</div>
+            <div class="spacer"></div>
+            <button class="btn" id="accPrev">上一列</button>
+            <div class="badge">列 <span id="accPage">1</span></div>
+            <button class="btn" id="accNext">下一列</button>
+          </div>
+          <div style="overflow:auto;border:1px solid var(--line);border-radius:12px">
+            <table>
+              <thead>
+                <tr>
+                  <th style="min-width:240px">账户</th>
+                  <th style="min-width:180px">标签</th>
+                  <th style="min-width:140px">状态</th>
+                  <th style="min-width:120px">中奖次数</th>
+                  <th style="min-width:160px">更新时间</th>
+                </tr>
+              </thead>
+              <tbody id="accBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ACTIVITIES -->
+      <div id="viewActivities" class="hidden">
+        <div class="panelHead">
+          <div class="panelTitle">活动管理</div>
+          <div class="spacer"></div>
+          <button class="btn primary" id="btnNewAct">新增活动</button>
+          <button class="btn danger" id="btnDeleteAct" disabled>删除活动</button>
+          <button class="btn" id="btnBackCards" disabled>返回活动卡片</button>
+          <button class="btn" id="btnExportWinners" disabled>导出中奖名单</button>
+        </div>
+
+        <div class="body grid2">
+          <div class="card" id="actCardsWrap">
+            <div class="panelTitle">活动列表（卡片）</div>
+            <div class="muted small" style="margin-top:6px">点击卡片进入活动；若无活动，请点右上“新增活动”。</div>
+            <div id="actCards" style="margin-top:12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px"></div>
+          </div>
+
+          <div class="card hidden" id="actDetailWrap">
+            <div class="panelTitle" id="actTitle">活动：—</div>
+            <div class="muted small" style="margin-top:6px">统一列表：搜索/解析/勾选后，可执行 报名/中奖/付款 批量操作。</div>
+
+            <div class="row" style="margin-top:10px">
+              <input id="actSearch" class="input" placeholder="搜索：账户/标签/状态（结果可自动勾选）" style="min-width:260px"/><select class="select" id="actFilter" style="margin-left:10px;min-width:160px"><option value="all">筛选：全部</option><option value="win">仅中奖</option><option value="unpaid">未付款</option><option value="paid">已付款</option></select>
+              <label class="row small" style="gap:6px"><input type="checkbox" id="actAutoSelect" checked/> 搜索自动勾选</label>
+              <button class="btn" id="actReset">重置</button>
+            </div>
+
+            <div class="row" style="margin-top:10px">
+              <button class="btn primary" id="btnApply">报名</button>
+              <button class="btn" id="btnUnapply">取消报名</button>
+              <button class="btn primary" id="btnWin">录入中奖</button>
+              <button class="btn" id="btnUnwin">取消中奖</button>
+              <button class="btn primary" id="btnPaid">设已付</button>
+              <button class="btn" id="btnUnpaid">设未付</button>
+            </div>
+
+            <div class="row" style="margin-top:10px;align-items:flex-start">
+              <div style="flex:1;min-width:320px">
+                <div class="muted small">粘贴账号（每行一个）→ 解析并勾选（若未录入账号库会弹窗提示）</div>
+                <textarea id="actPaste" placeholder="例如：\nabc@outlook.com\ndef@gmail.com"></textarea>
+                <div class="row" style="margin-top:8px">
+                  <button class="btn" id="btnParseSelect">解析并勾选</button>
+                  <div class="badge">已勾选：<span id="selCount">0</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div style="margin-top:12px;overflow:auto;border:1px solid var(--line);border-radius:12px;max-height:48vh">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:48px"><input type="checkbox" id="actChkAll"/></th>
+                    <th style="min-width:240px">账户</th>
+                    <th style="min-width:140px">标签</th>
+                    <th style="min-width:120px">状态</th>
+                    <th style="min-width:120px">报名</th>
+                    <th style="min-width:120px">中奖</th>
+                    <th style="min-width:120px">付款</th>
+                  </tr>
+                </thead>
+                <tbody id="actBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="panelTitle">活动维度统计（实时）</div>
+            <div class="muted small" style="margin-top:6px">当前活动：<span id="actStatName">—</span></div>
+            <div style="margin-top:10px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+              <div class="badge"><span class="dot"></span>报名：<span id="statApply">0</span></div>
+              <div class="badge"><span class="dot ok"></span>中奖：<span id="statWin">0</span></div>
+              <div class="badge"><span class="dot warn"></span>中奖率：<span id="statRate">0%</span></div>
+              <div class="badge"><span class="dot danger"></span>已付：<span id="statPaid">0</span></div>
+            </div>
+            <div class="muted small" style="margin-top:12px" id="actHint">提示：先在左侧卡片进入活动。</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BACKUP -->
+      <div id="viewBackup" class="hidden">
+        <div class="panelHead">
+          <div class="panelTitle">备份 / 导出</div>
+          <div class="spacer"></div>
+          <button class="btn" id="btnExportJson">导出 JSON</button>
+          <button class="btn" id="btnImportJson">导入 JSON</button>
+          <button class="btn danger" id="btnClearAll">清空全部数据</button>
+          <input type="file" id="fileJson" accept=".json,application/json" class="hidden"/>
+        </div>
+        <div class="body">
+          <div class="card">
+            <div class="muted small">用于跨版本迁移：导出当前账号库 + 活动数据为 JSON；或导入 JSON 恢复。</div>
+          </div>
+
+          <div class="card" style="margin-top:12px">
+            <div style="font-weight:800;margin-bottom:8px">云端同步（Supabase 主库 / Vercel 同步代理）</div>
+            <div class="muted small" style="margin-bottom:10px">
+              说明：本地仍使用 IndexedDB；此处通过 Vercel API 与云端主库同步。请勿在页面里填写/暴露 service_role key。
+            </div>
+            <div class="row" style="gap:10px;flex-wrap:wrap">
+              <div style="flex:1;min-width:260px">
+                <div class="muted small">同步 API Base URLhttps://baokemeng-git-main-dalemys-projects.vercel.app</div>
+                <input id="syncBaseUrl" class="input" placeholder="https://你的-vercel-域名" />
+              </div>
+              <div style="width:260px">
+                <div class="muted small">管理员同步口令（x-admin-token）</div>
+                <input id="syncAdminToken" class="input" placeholder="输入口令" type="password" />
+              </div>
+              <div style="display:flex;align-items:flex-end;gap:8px">
+                <button class="btn" id="btnSyncPing">测试连接</button>
+                <button class="btn" id="btnSyncPull">从云端拉取（覆盖本地）</button>
+                <button class="btn primary" id="btnSyncPush">推送本地到云端</button>
+              </div>
+            </div>
+            <div class="muted small" style="margin-top:10px" id="syncStatus">状态：未连接</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="toast" class="toast">—</div>
+
+  <!-- MODAL -->
+  <div id="accModal" class="modalOverlay hidden" role="dialog" aria-modal="true">
+    <div class="modalCard">
+      <div class="modalHead">
+        <div>
+          <div class="modalTitle">账号详情</div>
+          <div class="muted small" id="accModalSub">点击字段复制；点“编辑”后可修改保存。</div>
+        </div>
+        <div class="spacer"></div>
+        <button class="btn" id="btnAccClose">关闭（Esc）</button>
+      </div>
+      <div class="modalBody" id="accModalBody"></div>
+      <div class="modalFooter">
+        <button class="btn" id="btnAccEdit">编辑</button>
+        <button class="btn primary hidden" id="btnAccSave">保存</button>
+        <button class="btn hidden" id="btnAccCancel">取消</button>
+        <div class="spacer"></div>
+        <button class="btn" id="btnAccClose2">关闭</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // --- Safety shims (avoid blank page if any function missing) ---
+  if (typeof window.getWinCountByAccount !== 'function') {
+    window.getWinCountByAccount = function(acc){
+      var c = 0;
+      try{
+        if(!acc) return 0;
+        if(!window.state || !state.activities) return 0;
+        for(var i=0;i<state.activities.length;i++){
+          var act = state.activities[i];
+          if(!act || !act.members) continue;
+          var r = act.members[acc];
+          if(r && r.won) c++;
+        }
+      }catch(e){}
+      return c;
+    };
+  }
+
+/* =========================
+   Safe utilities (NO async)
+========================= */
+(function(){
+  var toastEl = document.getElementById('toast');
+  var toastT = null;
+  function toast(msg){
+    try{
+      toastEl.textContent = msg;
+      toastEl.style.display = 'block';
+      clearTimeout(toastT);
+      toastT = setTimeout(function(){ toastEl.style.display = 'none'; }, 1400);
+    }catch(e){}
+  }
+  window.__toast = toast;
+
+  function escHtml(s){
+    s = String(s==null?'':s);
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+  function escAttr(s){
+    s = String(s==null?'':s);
+    return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function copyText(t){
+    t = String(t||'');
+    if(!t) return;
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(t).then(function(){ toast('已复制'); }, function(){ fallbackCopy(t); });
+    }else fallbackCopy(t);
+  }
+  function fallbackCopy(t){
+    var ta = document.createElement('textarea');
+    ta.value = t;
+    ta.style.position='fixed'; ta.style.left='-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try{ document.execCommand('copy'); toast('已复制'); }catch(e){ alert('复制失败'); }
+    document.body.removeChild(ta);
+  }
+  window.__copyText = copyText;
+  window.__escHtml = escHtml;
+  window.__escAttr = escAttr;
+
+  window.onerror = function(msg, url, line, col, err){
+    console.error('JS Error:', msg, url, line, col, err);
+    try{ toast('脚本错误：'+msg); }catch(e){}
+    return false;
+  };
+
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape'){
+      closeAccModal();
+    }
+  });
+
+  function $(id){ return document.getElementById(id); }
+
+  /* =========================
+     IndexedDB (callback style)
+  ========================= */
+  var DB_NAME='act_acc_v199';
+  var DB_VER=1;
+  var STORE_ACC='accounts';
+  var STORE_ACT='activities';
+  var db=null;
+
+  function openDb(cb){
+    if(db) return cb(null, db);
+    var req = indexedDB.open(DB_NAME, DB_VER);
+    req.onupgradeneeded = function(ev){
+      var d = ev.target.result;
+      if(!d.objectStoreNames.contains(STORE_ACC)){
+        var s = d.createObjectStore(STORE_ACC, { keyPath:'account' });
+        s.createIndex('updated_at','updated_at',{unique:false});
+      }
+      if(!d.objectStoreNames.contains(STORE_ACT)){
+        d.createObjectStore(STORE_ACT, { keyPath:'id' });
+      }
+    };
+    req.onsuccess = function(ev){ db = ev.target.result; cb(null, db); };
+    req.onerror = function(){ cb(req.error||new Error('openDb failed')); };
+  }
+
+  function tx(store, mode, cb){
+    openDb(function(err, d){
+      if(err) return cb(err);
+      try{
+        var t = d.transaction([store], mode);
+        cb(null, t.objectStore(store), t);
+      }catch(e){ cb(e); }
+    });
+  }
+
+  
+  function delObj(store, key, cb){
+    tx(store,'readwrite', function(err, os, t){
+      if(err){ cb && cb(err); return; }
+      var req;
+      try{ req = os.delete(key); }catch(e){ cb && cb(e); return; }
+      req.onsuccess = function(){ /* no-op */ };
+      req.onerror = function(){ /* handled by tx */ };
+      t.oncomplete = function(){ cb && cb(null); };
+      t.onerror = function(){ cb && cb(t.error || req.error || new Error('delete failed')); };
+      t.onabort = function(){ cb && cb(t.error || req.error || new Error('delete aborted')); };
+    });
+  }
+
+  function clearStore(store, cb){
+    tx(store,'readwrite', function(err, os, t){
+      if(err){ cb && cb(err); return; }
+      var req;
+      try{ req = os.clear(); }catch(e){ cb && cb(e); return; }
+      t.oncomplete = function(){ cb && cb(null); };
+      t.onerror = function(){ cb && cb(t.error || req.error || new Error('clear failed')); };
+      t.onabort = function(){ cb && cb(t.error || req.error || new Error('clear aborted')); };
+    });
+  }
+
+  function deleteAllData(cb){
+    // 关闭当前连接并删除整个 IndexedDB（最干净，避免残留）
+    try{ if(db) db.close(); }catch(e){}
+    var req = indexedDB.deleteDatabase(DB_NAME);
+    req.onsuccess = function(){ cb && cb(null); };
+    req.onerror = function(){ cb && cb(req.error || new Error('deleteDatabase failed')); };
+    req.onblocked = function(){ toast('请关闭其它打开的页面/标签页后重试'); };
+  }
+
+function getAll(store, cb){
+    tx(store,'readonly', function(err, os){
+      if(err) return cb(err);
+      var req = os.getAll();
+      req.onsuccess = function(){ cb(null, req.result||[]); };
+      req.onerror = function(){ cb(req.error||new Error('getAll failed')); };
+    });
+  }
+
+  function putOne(store, obj, cb){
+    tx(store,'readwrite', function(err, os){
+      if(err) return cb(err);
+      var req = os.put(obj);
+      req.onsuccess = function(){ cb(null); };
+      req.onerror = function(){ cb(req.error||new Error('put failed')); };
+    });
+  }
+
+  function putMany(store, arr, cb){
+    tx(store,'readwrite', function(err, os, t){
+      if(err) return cb(err);
+      var i=0;
+      function next(){
+        if(i>=arr.length) return;
+        var req = os.put(arr[i]);
+        req.onsuccess = function(){ i++; next(); };
+        req.onerror = function(){ cb(req.error||new Error('putMany failed')); };
+      }
+      t.oncomplete = function(){ cb(null); };
+      t.onerror = function(){ cb(t.error||new Error('tx error')); };
+      next();
+    });
+  }
+
+  /* =========================
+     State
+  ========================= */
+  var allAccounts=[]; // {account, pwd, aux_email, aux_pwd, phone,... tags,status, created_at, updated_at}
+  var activities=[];  // {id, name, tag, note, created_at, updated_at, members:{account:{applied,won,paid}}}
+  var currentActId='';
+  var actFilter='all';
+  var accPage=1;
+
+  function nowIso(){ return new Date().toISOString(); }
+  function fmt(ts){
+    if(!ts) return '—';
+    try{
+      var d = new Date(ts);
+      if(isNaN(d.getTime())) return String(ts);
+      return d.toLocaleString('zh-CN');
+    }catch(e){
+      return String(ts);
+    }
+  }
+
+  // 统计某账号在所有活动中的“中奖次数”（win=true）
+  function getWinCountByAccount(account){
+    var c = 0;
+    var a = String(account||'').trim().toLowerCase();
+    for(var i=0;i<activities.length;i++){
+      var act = activities[i] || {};
+      var recs = act.members || {};
+      var r = recs[a];
+      if(r && r.win) c++;
+    }
+    return c;
+  }
+
+  function loadAll(cb){
+    getAll(STORE_ACC, function(e,a){
+      if(e) return cb(e);
+      allAccounts = a || [];
+      refreshAccTagFilterOptions();
+      getAll(STORE_ACT, function(e2,b){
+        if(e2) return cb(e2);
+        activities = b || [];
+        cb(null);
+      });
+    });
+  }
+
+  function refreshStats(){
+    $('accCount').textContent = String(allAccounts.length);
+    $('statAcc').textContent = String(allAccounts.length);
+  }
+
+  /* =========================
+     Tabs
+  ========================= */
+  function setTab(name){
+    var tabs = [
+      ['Import','viewImport'],
+      ['Accounts','viewAccounts'],
+      ['Activities','viewActivities'],
+      ['Backup','viewBackup']
+    ];
+    for(var i=0;i<tabs.length;i++){
+      var t = tabs[i][0], v = tabs[i][1];
+      $('tab'+t).classList.toggle('active', t===name);
+      $(v).classList.toggle('hidden', t!==name);
+    }
+    if(name==='Accounts') renderAccounts();
+    if(name==='Activities') renderActivities();
+  }
+  $('tabImport').onclick = function(){ setTab('Import'); };
+  $('tabAccounts').onclick = function(){ setTab('Accounts'); };
+  $('tabActivities').onclick = function(){ setTab('Activities'); };
+  $('tabBackup').onclick = function(){ setTab('Backup'); };
+
+  /* =========================
+     Accounts render + modal
+  ========================= */
+  function normalizeEmail(s){
+    s = String(s||'').trim();
+    if(!s) return '';
+    // remove invisible characters
+    s = s.replace(/\u200B|\u200C|\u200D|\uFEFF/g,'');
+    return s;
+  }
+
+  function renderAccounts(){
+    refreshStats();
+    var q = normalizeEmail($('accSearch').value).toLowerCase();
+    var tagSel = ($('accTagFilter') && $('accTagFilter').value) ? $('accTagFilter').value : '__ALL__';
+    var per = parseInt($('accPerCol').value||'100',10);
+    if(!per||per<1) per=100;
+
+    var rows = [];
+    for(var i=0;i<allAccounts.length;i++){
+      var a = allAccounts[i]||{};
+      var hay = [
+        a.account, a.tags, a.status, a.phone, a.zip, a.addr_city, a.addr_line,
+        a.note1,a.note2,a.note3,a.note4
+      ].join(' ').toLowerCase();
+      if((!q || hay.indexOf(q)>=0) && hasTag(a.tags, tagSel)) rows.push(a);
+    }
+    // sort by updated desc
+    rows.sort(function(x,y){
+      var ax = x.updated_at||x.created_at||'';
+      var by = y.updated_at||y.created_at||'';
+      return (by>ax)?1:(by<ax?-1:0);
+    });
+
+    var total = rows.length;
+    var pages = Math.max(1, Math.ceil(total/per));
+    if(accPage>pages) accPage=pages;
+    if(accPage<1) accPage=1;
+    var start=(accPage-1)*per, end=Math.min(total, start+per);
+    $('accPage').textContent = String(accPage);
+    $('accPageInfo').textContent = '显示 '+(total?(start+1):0)+'-'+end+' / 共 '+total+' 条；共 '+pages+' 列';
+
+    var body = $('accBody');
+    var html = '';
+    for(var j=start;j<end;j++){
+      var a2 = rows[j];
+      html += '<tr>' +
+        '<td><a class="alink" href="javascript:void(0)" data-acc="'+escAttr(a2.account||'')+'">'+escHtml(a2.account||'')+'</a></td>' +
+        '<td>'+ (a2.tags?escHtml(a2.tags):'<span class="muted">—</span>') +'</td>' +
+        '<td>'+ (a2.status?escHtml(a2.status):'<span class="muted">—</span>') +'</td>' +
+        '<td>'+ String(getWinCountByAccount(a2.account||'')) +'</td>' +
+        '<td>'+ escHtml(fmt(a2.updated_at||a2.created_at)) +'</td>' +
+      '</tr>';
+    }
+    if(!html) html = '<tr><td colspan="5" class="muted">没有数据</td></tr>';
+    body.innerHTML = html;
+  }
+
+  $('accSearch').oninput = function(){ accPage=1; renderAccounts(); };
+  $('accTagFilter').onchange = function(){ accPage=1; renderAccounts(); };
+  $('accPerCol').onchange = function(){ accPage=1; renderAccounts(); };
+  $('accPrev').onclick = function(){ accPage=Math.max(1, accPage-1); renderAccounts(); };
+  $('accNext').onclick = function(){ accPage=accPage+1; renderAccounts(); };
+  $('accReset').onclick = function(){ $('accSearch').value=''; if($('accTagFilter')) $('accTagFilter').value='__ALL__'; accPage=1; renderAccounts(); toast('已重置'); };
+
+  // Modal state
+  var accModal = $('accModal');
+  var accModalBody = $('accModalBody');
+  var accEditing=false;
+  var accObj=null;
+  var accDraft=null;
+
+  function openAccModalByAccount(acc){
+    acc = normalizeEmail(acc).toLowerCase();
+    var found=null;
+    for(var i=0;i<allAccounts.length;i++){
+      if(normalizeEmail(allAccounts[i].account).toLowerCase()===acc){ found=allAccounts[i]; break; }
+    }
+    if(!found){ toast('未找到账号'); return; }
+    accObj = found;
+    accEditing=false;
+    accDraft=null;
+    renderAccModal();
+    accModal.classList.remove('hidden');
+    document.body.style.overflow='hidden';
+  }
+  window.openAccModalByAccount = openAccModalByAccount;
+
+  function closeAccModal(){
+    if(accModal.classList.contains('hidden')) return;
+    accModal.classList.add('hidden');
+    document.body.style.overflow='';
+  }
+  window.closeAccModal = closeAccModal;
+
+  function renderAccModal(){
+    var a = accEditing ? accDraft : accObj;
+    var fields = [
+      ['活动报名','apply_title'], ['标签','tags'], ['账户','account'], ['密码','pwd'],
+      ['电话号码','phone'], ['邮编','zip'],
+      ['地址县市','addr_city'], ['地址门牌','addr_line'], ['汉字名','name_cn'], ['日语名','name_jp'],
+      ['卡名','card_name'], ['信用卡','cc'], ['CVV','cvv'], ['有效期','exp'],
+      ['出生年月','birth_ym'], ['备注1','note1'], ['备注2','note2'], ['备注3','note3'],
+      ['备注4','note4'], ['状态','status']
+    ];
+    var html = '<div class="kv4">';
+    for(var i=0;i<fields.length;i++){
+      var key = fields[i][0], k=fields[i][1];
+      var v = (a && a[k]!=null) ? String(a[k]) : '';
+      html += '<div class="field">';
+      html +=   '<div class="lbl">'+escHtml(key)+'</div>';
+      if(accEditing){
+        html += '<div class="val edit" contenteditable="true" data-k="'+escAttr(k)+'">'+escHtml(v)+'</div>';
+      }else{
+        html += '<div class="val" data-copy="'+escAttr(v)+'">'+(v?escHtml(v):'<span class="muted">—</span>')+'</div>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+    accModalBody.innerHTML = html;
+
+    if(!accEditing){
+      var vs = accModalBody.querySelectorAll('.val');
+      for(var j=0;j<vs.length;j++){
+        vs[j].onclick = function(){
+          var t = this.getAttribute('data-copy') || '';
+          if(!t) return;
+          tryCopy(t);
+          toast('已复制');
+        };
+      }
+    }else{
+      var es = accModalBody.querySelectorAll('.val.edit');
+      for(var k=0;k<es.length;k++){
+        es[k].addEventListener('input', function(){
+          var kk = this.getAttribute('data-k');
+          if(!accDraft) return;
+          accDraft[kk] = this.textContent;
+        });
+      }
+    }
+  }
+
+  function startEdit(){
+    if(!accObj) return;
+    accEditing=true;
+    accDraft = JSON.parse(JSON.stringify(accObj));
+    renderAccModal();
+  }
+  function cancelEdit(){
+    accEditing=false;
+    accDraft=null;
+    renderAccModal();
+  }
+  function saveEdit(){
+    if(!accEditing || !accDraft) return;
+    var edits = accModalBody.querySelectorAll('.v[contenteditable="true"]');
+    for(var i=0;i<edits.length;i++){
+      var k = edits[i].getAttribute('data-k');
+      var v = edits[i].textContent || '';
+      accDraft[k] = v.trim();
+    }
+    accDraft.updated_at = nowIso();
+    // ensure key is account
+    accDraft.account = normalizeEmail(accDraft.account);
+    if(!accDraft.account){ alert('账户不能为空'); return; }
+
+    putOne(STORE_ACC, accDraft, function(err){
+      if(err){ alert('保存失败：'+(err.message||err)); return; }
+      // update in memory
+      loadAll(function(e){
+        if(e){ alert('刷新失败'); return; }
+        renderAccounts();
+        refreshStats();
+        toast('已保存');
+        closeAccModal();
+      });
+    });
+  }
+
+  $('btnAccClose').onclick = closeAccModal;
+  $('btnAccClose2').onclick = closeAccModal;
+  $('btnAccEdit').onclick = startEdit;
+  $('btnAccCancel').onclick = cancelEdit;
+  $('btnAccSave').onclick = saveEdit;
+  accModal.addEventListener('click', function(e){ if(e.target===accModal) closeAccModal(); });
+
+  // force account click via delegation
+  document.addEventListener('click', function(e){
+    var a = e.target && e.target.closest ? e.target.closest('a.alink') : null;
+    if(a && a.getAttribute('data-acc')){
+      e.preventDefault();
+      openAccModalByAccount(a.getAttribute('data-acc'));
+    }
+  }, true);
+
+  /* =========================
+     Activities cards / enter / back
+  ========================= */
+  function renderActivities(){
+    // cards always visible; detail visible only if currentActId exists
+    var cardsWrap = $('actCardsWrap');
+    var detailWrap = $('actDetailWrap');
+    var backBtn = $('btnBackCards');
+    var delBtn = $('btnDeleteAct');
+    var expBtn = $('btnExportWinners');
+
+    // if currentActId not valid, reset
+    var act = null;
+    if(currentActId){
+      for(var i=0;i<activities.length;i++){
+        if(activities[i].id===currentActId){ act=activities[i]; break; }
+      }
+      if(!act) currentActId='';
+    }
+
+    if(!currentActId){
+      backBtn.disabled = true;
+      if(delBtn) delBtn.disabled = true;
+      if(expBtn) expBtn.disabled = true;
+      cardsWrap.classList.remove('hidden');
+      detailWrap.classList.add('hidden');
+      renderActCards();
+      setActStats(null);
+      $('actHint').textContent = '提示：先在左侧卡片进入活动。';
+      return;
+    }
+
+    backBtn.disabled = false;
+      if(delBtn) delBtn.disabled = false;
+    if(expBtn) expBtn.disabled = false;
+    cardsWrap.classList.add('hidden');
+    detailWrap.classList.remove('hidden');
+
+    // render detail list
+    $('actTitle').textContent = '活动：' + act.name + '（'+act.id+'）';
+    $('actStatName').textContent = act.name;
+    renderActUnifiedList(act);
+    setActStats(act);
+    $('actHint').textContent = '已进入活动，可搜索/解析并勾选后批量操作。';
+  }
+
+  function renderActCards(){
+    var box = $('actCards');
+    if(!activities.length){
+      box.innerHTML = '<div class="muted">暂无活动。请点右上“新增活动”。</div>';
+      return;
+    }
+    var html='';
+    // sort newest first
+    var acts = activities.slice().sort(function(a,b){
+      return (b.created_at||'').localeCompare(a.created_at||'');
+    });
+    for(var i=0;i<acts.length;i++){
+      var a = acts[i];
+      var stats = calcActStats(a);
+      html += '<div class="card" style="cursor:pointer" data-act="'+escAttr(a.id)+'">'+
+        '<div style="font-weight:900">'+escHtml(a.name)+'</div>'+
+        '<div class="muted small" style="margin-top:6px">报名：'+stats.apply+' · 中奖：'+stats.win+' · 已付：'+stats.paid+' · 中奖率：'+stats.rate+'</div>'+
+        '<div class="muted small" style="margin-top:6px">ID：'+escHtml(a.id)+'</div>'+
+      '</div>';
+    }
+    box.innerHTML = html;
+  }
+
+  function calcActStats(act){
+    var m = act.members||{};
+    var apply=0, win=0, paid=0, total=0;
+    for(var k in m){
+      if(!m.hasOwnProperty(k)) continue;
+      total++;
+      if(m[k].applied) apply++;
+      if(m[k].won) win++;
+      if(m[k].paid) paid++;
+    }
+    var rate = (apply? Math.round((win/apply)*1000)/10 : 0) + '%';
+    return {apply:apply, win:win, paid:paid, rate:rate};
+  }
+
+  function setActStats(act){
+    if(!act){
+      $('statApply').textContent='0';
+      $('statWin').textContent='0';
+      $('statPaid').textContent='0';
+      $('statRate').textContent='0%';
+      $('actStatName').textContent='—';
+      return;
+    }
+    var s = calcActStats(act);
+    $('statApply').textContent = String(s.apply);
+    $('statWin').textContent = String(s.win);
+    $('statPaid').textContent = String(s.paid);
+    $('statRate').textContent = String(s.rate);
+  }
+
+  // enter activity by clicking card
+  document.addEventListener('click', function(e){
+    var card = e.target && e.target.closest ? e.target.closest('#actCards [data-act]') : null;
+    if(card){
+      var id = card.getAttribute('data-act');
+      currentActId = id;
+      renderActivities();
+    }
+  }, true);
+
+  // back cards (one click)
+  $('btnBackCards').onclick = function(){
+    currentActId='';
+    renderActivities();
+  };
+
+  // Export winners
+  $('btnExportWinners').onclick = function(){
+    exportCurrentActWinners();
+  };
+
+
+  // New activity
+  $('btnNewAct').onclick = function(){
+    var name = prompt('请输入活动名称（例如：5400）');
+    if(!name) return;
+    var id = 'ACT-' + Date.now();
+    var act = {id:id, name:name.trim(), tag:'', note:'', created_at:nowIso(), updated_at:nowIso(), members:{}};
+    putOne(STORE_ACT, act, function(err){
+      if(err){ alert('创建失败'); return; }
+      loadAll(function(){
+        toast('已创建活动');
+        renderActivities();
+        renderActCards();
+      });
+    });
+  };
+
+  $('btnDeleteAct').onclick = function(){
+    if(!currentActId){ toast('请先进入一个活动'); return; }
+    var act = getCurrentAct();
+    var name = act ? (act.name || act.id) : currentActId;
+    if(!confirm('确认删除活动：' + name + ' ?\n\n删除后该活动的报名/中奖/付款记录也会一并删除。')) return;
+    var delId = currentActId;
+    delObj(STORE_ACT, delId, function(err){
+      if(err){ alert('删除失败：' + (err.message||err)); return; }
+      // record delete for cloud sync
+      try{
+        var ds = JSON.parse(localStorage.getItem('OPS_SYNC_DELETES_V1')||'{}');
+        if(!ds.activities) ds.activities=[];
+        if(ds.activities.indexOf(delId)===-1) ds.activities.push(delId);
+        localStorage.setItem('OPS_SYNC_DELETES_V1', JSON.stringify(ds));
+      }catch(e){}
+      currentActId = '';
+      actSelected = {};
+      loadAll(function(){
+        toast('已删除活动');
+        // 回到活动卡片视图
+        renderActivities();
+        renderActCards();
+      });
+    });
+  };
+
+  /* =========================
+     Activity unified list
+  ========================= */
+  var actSelected = {}; // account -> true
+  function getCurrentAct(){
+    for(var i=0;i<activities.length;i++){
+      if(activities[i].id===currentActId) return activities[i];
+    }
+    return null;
+  }
+  function ensureActMembers(act){
+    if(!act.members) act.members = {};
+  }
+  function updateSelCount(){
+    var c=0; for(var k in actSelected) if(actSelected[k]) c++;
+    $('selCount').textContent = String(c);
+  }
+
+  function renderActUnifiedList(act){
+    actSelected = {};
+    if($('actFilter')) $('actFilter').value = actFilter||'all';
+$('actSearch').value = '';
+    $('actPaste').value = '';
+    $('actChkAll').checked = false;
+    updateSelCount();
+
+    var tbody = $('actBody');
+    // build list from allAccounts (show all accounts)
+    var html='';
+    for(var i=0;i<allAccounts.length;i++){
+      var acc = allAccounts[i].account;
+      var m = act.members && act.members[acc] ? act.members[acc] : {applied:false, won:false, paid:false};
+      if(actFilter && actFilter!=='all'){
+        if(actFilter==='win' && !m.won) continue;
+        if(actFilter==='paid' && !m.paid) continue;
+        if(actFilter==='unpaid' && !(m.won && !m.paid)) continue;
+      }
+      var applied = m.applied ? '<span class="badge"><span class="dot ok"></span>已报名</span>' : '<span class="badge"><span class="dot"></span>未报名</span>';
+      var won = m.won ? '<span class="badge"><span class="dot ok"></span>已中奖</span>' : '<span class="badge"><span class="dot"></span>未中奖</span>';
+      var paid = m.paid ? '<span class="badge"><span class="dot ok"></span>已付</span>' : '<span class="badge"><span class="dot danger"></span>未付</span>';
+      html += '<tr data-acc="'+escAttr(acc)+'">'+
+        '<td><input type="checkbox" class="actChk" data-acc="'+escAttr(acc)+'"/></td>'+
+        '<td><a class="alink" href="javascript:void(0)" data-acc="'+escAttr(acc)+'">'+escHtml(acc)+'</a></td>'+
+        '<td>'+ (allAccounts[i].tags?escHtml(allAccounts[i].tags):'<span class="muted">—</span>') +'</td>'+
+        '<td>'+ (allAccounts[i].status?escHtml(allAccounts[i].status):'<span class="muted">—</span>') +'</td>'+
+        '<td>'+ applied +'</td>'+
+        '<td>'+ won +'</td>'+
+        '<td>'+ paid +'</td>'+
+      '</tr>';
+    }
+    if(!html) html = '<tr><td colspan="7" class="muted">账号库为空，请先导入账号。</td></tr>';
+    tbody.innerHTML = html;
+    setActStats(act);
+  }
+
+  // selection handlers
+  $('actBody').addEventListener('change', function(e){
+    var chk = e.target;
+    if(chk && chk.classList.contains('actChk')){
+      var acc = chk.getAttribute('data-acc');
+      actSelected[acc] = chk.checked;
+      updateSelCount();
+    }
+  });
+
+  $('actChkAll').onchange = function(){
+    var all = $('actBody').querySelectorAll('.actChk');
+    for(var i=0;i<all.length;i++){
+      all[i].checked = $('actChkAll').checked;
+      actSelected[all[i].getAttribute('data-acc')] = all[i].checked;
+    }
+    updateSelCount();
+  };
+
+  // search auto select
+  $('actSearch').oninput = function(){
+    var act = getCurrentAct(); if(!act) return;
+    var q = normalizeEmail($('actSearch').value).toLowerCase();
+    var auto = $('actAutoSelect').checked;
+    var rows = $('actBody').querySelectorAll('tr[data-acc]');
+    for(var i=0;i<rows.length;i++){
+      var acc = rows[i].getAttribute('data-acc');
+      var obj=null;
+      for(var j=0;j<allAccounts.length;j++){ if(allAccounts[j].account===acc){ obj=allAccounts[j]; break; } }
+      var hay = (acc+' '+(obj?obj.tags:'')+' '+(obj?obj.status:'')).toLowerCase();
+      var hit = !q || hay.indexOf(q)>=0;
+      rows[i].style.display = hit ? '' : 'none';
+      if(auto){
+        var chk = rows[i].querySelector('.actChk');
+        if(chk){ chk.checked = hit; actSelected[acc]=hit; }
+      }
+    }
+    updateSelCount();
+  };
+  $('actFilter').onchange = function(){ actFilter = $('actFilter').value; if(currentActId){ renderActUnifiedList(getCurrentAct()); } };
+
+
+  $('actReset').onclick = function(){
+    $('actSearch').value='';
+    $('actPaste').value='';
+    $('actChkAll').checked=false;
+    actSelected={};
+    // show all rows and uncheck
+    var rows = $('actBody').querySelectorAll('tr[data-acc]');
+    for(var i=0;i<rows.length;i++){
+      rows[i].style.display='';
+      var chk=rows[i].querySelector('.actChk');
+      if(chk) chk.checked=false;
+    }
+    updateSelCount();
+    toast('已重置');
+  };
+
+  function getSelectedAccounts(){
+    var arr=[];
+    for(var k in actSelected) if(actSelected[k]) arr.push(k);
+    return arr;
+  }
+
+  function applyChange(flag, field){
+    var act = getCurrentAct();
+    if(!act){ alert('请先进入活动'); return; }
+    var sel = getSelectedAccounts();
+    if(!sel.length){ alert('请先勾选账号'); return; }
+    ensureActMembers(act);
+    for(var i=0;i<sel.length;i++){
+      var acc = sel[i];
+      if(!act.members[acc]) act.members[acc] = {applied:false, won:false, paid:false};
+      act.members[acc][field] = flag;
+      // rule: if paid=true, implies won=true
+      if(field==='paid' && flag===true) act.members[acc].won = true;
+      if(field==='won' && flag===false) act.members[acc].paid = false;
+    }
+    act.updated_at = nowIso();
+    putOne(STORE_ACT, act, function(err){
+      if(err){ alert('保存活动失败'); return; }
+      // refresh in memory
+      loadAll(function(){
+        toast('已更新：'+sel.length+' 个');
+        renderActivities(); // will refresh list + stats
+      });
+    });
+  }
+
+  $('btnApply').onclick = function(){ applyChange(true,'applied'); };
+  $('btnUnapply').onclick = function(){ applyChange(false,'applied'); };
+  $('btnWin').onclick = function(){ applyChange(true,'won'); };
+  $('btnUnwin').onclick = function(){ applyChange(false,'won'); };
+  $('btnPaid').onclick = function(){ applyChange(true,'paid'); };
+  $('btnUnpaid').onclick = function(){ applyChange(false,'paid'); };
+
+  // parse and select pasted accounts
+  function parseEmailsFromText(t){
+    t = String(t||'');
+    // split by newlines, spaces, commas, semicolons
+    var parts = t.split(/[\n\r\t,; ]+/);
+    var out=[];
+    for(var i=0;i<parts.length;i++){
+      var s = normalizeEmail(parts[i]);
+      if(!s) continue;
+      // very loose email check
+      if(s.indexOf('@')>0 && s.indexOf('.')>0) out.push(s);
+    }
+    // dedupe case-insensitive
+    var seen={}, res=[];
+    for(var j=0;j<out.length;j++){
+      var k = out[j].toLowerCase();
+      if(!seen[k]){ seen[k]=true; res.push(out[j]); }
+    }
+    return res;
+  }
+
+  $('btnParseSelect').onclick = function(){
+    try{
+      var act = getCurrentAct();
+      if(!act){ alert('请先进入活动'); return; }
+      var list = parseEmailsFromText($('actPaste').value);
+      if(!list.length){ alert('未识别到账号'); return; }
+      var exist = {};
+      for(var i=0;i<allAccounts.length;i++){
+        exist[normalizeEmail(allAccounts[i].account).toLowerCase()] = true;
+      }
+      var missing=[];
+      for(var j=0;j<list.length;j++){
+        if(!exist[list[j].toLowerCase()]) missing.push(list[j]);
+      }
+      if(missing.length){
+        alert('解析失败：以下账号未录入账号库（共 '+missing.length+' 个）：\n\n'+missing.join('\n'));
+      }
+      // select existing in visible list
+      var rows = $('actBody').querySelectorAll('tr[data-acc]');
+      var want={}; for(var k=0;k<list.length;k++) want[list[k].toLowerCase()] = true;
+      var hitCount=0;
+      for(var r=0;r<rows.length;r++){
+        var acc = rows[r].getAttribute('data-acc');
+        var chk = rows[r].querySelector('.actChk');
+        if(!chk) continue;
+        var hit = !!want[acc.toLowerCase()];
+        if(hit){ chk.checked=true; actSelected[acc]=true; hitCount++; }
+      }
+      updateSelCount();
+      toast('已匹配勾选：'+hitCount);
+    }catch(e){
+      console.error(e);
+      alert('解析并勾选发生错误：'+(e.message||e));
+    }
+  };
+
+  /* =========================
+     CSV import (with decode)
+  ========================= */
+  var csvRows=[];
+  function decodeFile(file, cb){
+    var reader = new FileReader();
+    reader.onload = function(){
+      var buf = reader.result;
+      // try UTF-8 (BOM ok)
+      try{
+        var u8 = new Uint8Array(buf);
+        // check BOM
+        var start = 0;
+        if(u8.length>=3 && u8[0]==0xEF && u8[1]==0xBB && u8[2]==0xBF) start=3;
+        var txt = new TextDecoder('utf-8',{fatal:false}).decode(u8.slice(start));
+        // if lots of replacement chars, try gbk (best-effort)
+        var bad = (txt.match(/\uFFFD/g)||[]).length;
+        if(bad>20){
+          try{
+            txt = new TextDecoder('gbk',{fatal:false}).decode(u8);
+          }catch(e){}
+        }
+        cb(null, txt);
+      }catch(e){
+        cb(e);
+      }
+    };
+    reader.onerror = function(){ cb(reader.error||new Error('read failed')); };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function parseCsv(text){
+    // simple CSV parser for comma separated with quotes
+    var rows=[];
+    var i=0, field='', row=[], inQ=false;
+    for(i=0;i<text.length;i++){
+      var c = text[i];
+      if(inQ){
+        if(c === '"'){
+          if(text[i+1] === '"'){ field += '"'; i++; }
+          else inQ=false;
+        }else field += c;
+      }else{
+        if(c === '"') inQ=true;
+        else if(c === ','){ row.push(field); field=''; }
+        else if(c === '\n'){
+          row.push(field); field='';
+          // trim \r
+          if(row.length===1 && row[0]==='') { row=[]; continue; }
+          rows.push(row.map(function(x){ return x.replace(/\r/g,''); }));
+          row=[];
+        }else field += c;
+      }
+    }
+    row.push(field);
+    if(row.length>1 || row[0]) rows.push(row.map(function(x){ return x.replace(/\r/g,''); }));
+    return rows;
+  }
+
+  // Required headers (your table)
+  var HEADERS = ["活动报名","标签","账户","密码","辅助邮箱","密码","电话号码","邮编","地址县市","地址门牌","汉字名","日语名","卡名","信用卡","CVV","有效期","出生年月","备注1","备注2","备注3","备注4","状态","中奖次数","最近中奖活动","付款状态","创建时间","更新时间"];
+
+  function renderCsvPreview(rows){
+    // show header + first 10 lines
+    var head = $('csvHead');
+    var body = $('csvBody');
+    head.innerHTML='';
+    body.innerHTML='';
+    if(!rows || !rows.length){
+      body.innerHTML = '<tr><td class="muted">无数据</td></tr>';
+      return;
+    }
+    var h = rows[0]||[];
+    for(var i=0;i<Math.min(h.length, 28);i++){
+      head.innerHTML += '<th>'+escHtml(h[i]||'')+'</th>';
+    }
+    var n = Math.min(10, rows.length-1);
+    for(var r=1;r<=n;r++){
+      var tr='<tr>';
+      for(var c=0;c<Math.min(h.length,28);c++){
+        tr+='<td>'+escHtml(rows[r][c]||'')+'</td>';
+      }
+      tr+='</tr>';
+      body.innerHTML += tr;
+    }
+  }
+
+  function mapRowToAccount(header, row){
+    // build index map
+    var idx={};
+    for(var i=0;i<header.length;i++){
+      var k = (header[i]||'').trim();
+      if(k) idx[k]=i;
+    }
+    function val(name){
+      var p = idx[name];
+      if(p==null) return '';
+      return String(row[p]||'').trim();
+    }
+    var acc = normalizeEmail(val('账户'));
+    return {
+      apply_title: val('活动报名'),
+      tags: val('标签'),
+      account: acc,
+      pwd: val('密码'),
+      aux_email: val('辅助邮箱'),
+      aux_pwd: val('密码'), // 注意：CSV里“密码”出现两次，第二个也叫密码；本系统先按同名取第一个。建议你用模板导出再导回。
+      phone: val('电话号码'),
+      zip: val('邮编'),
+      addr_city: val('地址县市'),
+      addr_line: val('地址门牌'),
+      name_cn: val('汉字名'),
+      name_jp: val('日语名'),
+      card_name: val('卡名'),
+      cc: val('信用卡'),
+      cvv: val('CVV'),
+      exp: val('有效期'),
+      birth_ym: val('出生年月'),
+      note1: val('备注1'),
+      note2: val('备注2'),
+      note3: val('备注3'),
+      note4: val('备注4'),
+      status: val('状态') || '',
+      created_at: val('创建时间') || nowIso(),
+      updated_at: nowIso()
+    };
+  }
+
+  function ensureTemplateHeaders(){
+    return HEADERS.join(',') + '\n';
+  }
+
+  function download(name, content){
+    var blob = new Blob([content], {type:'text/csv;charset=utf-8'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 500);
+  }
+
+
+  // 兼容复制（修复：tryCopy 未定义导致“点击复制”报错）
+  function tryCopy(text){
+    text = String(text||'');
+    if(!text) return;
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).catch(function(){
+        // fallback below
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position='fixed';
+        ta.style.left='-9999px';
+        ta.style.top='-9999px';
+        document.body.appendChild(ta);
+        ta.focus(); ta.select();
+        try{ document.execCommand('copy'); }catch(e){}
+        document.body.removeChild(ta);
+      });
+      return;
+    }
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position='fixed';
+    ta.style.left='-9999px';
+    ta.style.top='-9999px';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    try{ document.execCommand('copy'); }catch(e){}
+    document.body.removeChild(ta);
+  }
+
+  // 账号库：标签下拉筛选（默认“全部标签”）
+  function refreshAccTagFilterOptions(){
+    var sel = $('accTagFilter');
+    if(!sel) return;
+    var cur = sel.value || '__ALL__';
+
+    var set = {};
+    for(var i=0;i<allAccounts.length;i++){
+      var t = (allAccounts[i]||{}).tags || '';
+      if(!t) continue;
+      // 支持：逗号/顿号/空格/分号分隔
+      var parts = String(t).split(/[\s,，;；/|]+/);
+      for(var k=0;k<parts.length;k++){
+        var p = (parts[k]||'').trim();
+        if(p) set[p]=1;
+      }
+    }
+    var tags = Object.keys(set);
+    tags.sort(function(a,b){ return a.localeCompare(b,'zh'); });
+
+    var html = '<option value="__ALL__">全部标签</option>';
+    for(var j=0;j<tags.length;j++){
+      html += '<option value="'+escHtml(tags[j])+'">'+escHtml(tags[j])+'</option>';
+    }
+    sel.innerHTML = html;
+    // 尽量保留当前选项
+    if(cur && (cur==='__ALL__' || set[cur])) sel.value = cur;
+    else sel.value='__ALL__';
+  }
+
+  function hasTag(aTags, want){
+    if(!want || want==='__ALL__') return true;
+    var t = String(aTags||'');
+    if(!t) return false;
+    var parts = t.split(/[\s,，;；/|]+/);
+    for(var i=0;i<parts.length;i++){
+      if((parts[i]||'').trim()===want) return true;
+    }
+    // 兼容：没按分隔存储时，用包含判断兜底
+    return t.indexOf(want)>=0;
+  }
+
+  // 活动：导出当前活动的“中奖账号”完整信息（CSV）
+  function csvCell(v){
+    v = (v===null || v===undefined) ? '' : String(v);
+    // 双引号转义
+    v = v.replace(/"/g,'""');
+    return '"' + v + '"';
+  }
+
+  function exportCurrentActWinners(){
+    if(!currentActId){ alert('请先进入一个活动'); return; }
+    var act = null;
+    for(var i=0;i<activities.length;i++){
+      if(activities[i].id===currentActId){ act=activities[i]; break; }
+    }
+    if(!act){ alert('活动不存在或已被删除'); return; }
+    var members = act.members || {};
+    var winners = [];
+    for(var acc in members){
+      if(members.hasOwnProperty(acc)){
+        var m = members[acc] || {};
+        if(!!m.won) winners.push(acc);
+      }
+    }
+    if(!winners.length){ alert('本活动暂无“中奖”账号'); return; }
+
+    // 账户信息字典（便于补全所有字段）
+    var map = {};
+    for(var j=0;j<allAccounts.length;j++){
+      var a = allAccounts[j]||{};
+      if(a.account) map[a.account]=a;
+    }
+
+    // 导出字段：覆盖你当前系统里“账号详情”的所有字段（缺失则为空）
+    var cols = [
+      ['activity_name','活动'],
+      ['account','账户'],
+      ['won','是否中奖'],
+      ['paid','是否已付'],
+      ['applied','是否报名'],
+      ['tags','标签'],
+      ['status','状态'],
+      ['pwd','密码'],
+      ['phone','电话号码'],
+      ['zip','邮编'],
+      ['addr_city','地址县市'],
+      ['addr_line','地址门牌'],
+      ['name_cn','汉字名'],
+      ['name_jp','日语名'],
+      ['card_name','卡名'],
+      ['card_num','信用卡'],
+      ['exp','有效期'],
+      ['cvv','CVV'],
+      ['dob','出生年月'],
+      ['note1','备注1'],
+      ['note2','备注2'],
+      ['note3','备注3'],
+      ['note4','备注4'],
+      ['updated_at','更新时间']
+    ];
+
+    var header = cols.map(function(x){ return csvCell(x[1]); }).join(',');
+    var lines = [header];
+
+    for(var w=0;w<winners.length;w++){
+      var acc = winners[w];
+      var a2 = map[acc] || {account:acc};
+      var mm = members[acc] || {};
+      var rowObj = Object.assign({}, a2, {
+        activity_name: act.name||'',
+        won: mm.won ? '是':'否',
+        paid: mm.paid ? '是':'否',
+        applied: mm.applied ? '是':'否'
+      });
+      var line = cols.map(function(c){
+        return csvCell(rowObj[c[0]]);
+      }).join(',');
+      lines.push(line);
+    }
+
+    var bom = '\ufeff';
+    var csv = bom + lines.join('\n');
+    var name = (act.name||'活动') + '_中奖名单_' + (new Date().toISOString().slice(0,10)) + '.csv';
+    download(name, csv);
+  }
+  $('btnDownloadTpl').onclick = function(){
+    download('账号导入模板.csv', ensureTemplateHeaders());
+    toast('已导出模板');
+  };
+
+  $('btnParseCsv').onclick = function(){
+    var f = $('fileCsv').files && $('fileCsv').files[0];
+    if(!f){ alert('请先选择CSV文件'); return; }
+    decodeFile(f, function(err, text){
+      if(err){ alert('读取失败'); return; }
+      var rows = parseCsv(text);
+      csvRows = rows;
+      renderCsvPreview(rows);
+      $('btnImportCsv').disabled = false;
+      $('importMsg').textContent = '已解析：行数 '+Math.max(0, rows.length-1)+'；请点击“确认导入”。';
+      toast('解析完成');
+    });
+  };
+
+  $('btnImportCsv').onclick = function(){
+    if(!csvRows || csvRows.length<2){ alert('请先解析'); return; }
+    var header = csvRows[0].map(function(x){ return String(x||'').trim(); });
+    // Must include 账户
+    var hasAcc=false;
+    for(var i=0;i<header.length;i++){ if(header[i]==='账户') hasAcc=true; }
+    if(!hasAcc){ alert('CSV缺少必要列：账户。请用系统导出的模板'); return; }
+
+    // create map for duplicates
+    var existing={};
+    for(var j=0;j<allAccounts.length;j++){
+      existing[normalizeEmail(allAccounts[j].account).toLowerCase()] = allAccounts[j];
+    }
+    var adds=0, upds=0;
+    var toSave=[];
+    for(var r=1;r<csvRows.length;r++){
+      var row = csvRows[r];
+      var obj = mapRowToAccount(header, row);
+      if(!obj.account) continue;
+      var key = obj.account.toLowerCase();
+      if(existing[key]){
+        // merge: overwrite non-empty fields
+        var base = existing[key];
+        for(var k in obj){
+          if(!obj.hasOwnProperty(k)) continue;
+          if(k==='account') continue;
+          if(obj[k]!=='' && obj[k]!=null) base[k]=obj[k];
+        }
+        base.updated_at = nowIso();
+        toSave.push(base);
+        upds++;
+      }else{
+        obj.created_at = nowIso();
+        obj.updated_at = nowIso();
+        toSave.push(obj);
+        adds++;
+      }
+    }
+
+    if(!toSave.length){ alert('没有可导入的有效账号'); return; }
+
+    putMany(STORE_ACC, toSave, function(err){
+      if(err){ alert('导入失败'); return; }
+      loadAll(function(){
+        $('statAdd').textContent=String(adds);
+        $('statUpd').textContent=String(upds);
+        refreshStats();
+        $('importMsg').textContent = '导入完成：新增 '+adds+'，更新 '+upds+'。切到“账号库”查看。';
+        toast('导入完成');
+      });
+    });
+  };
+
+  /* =========================
+     Backup JSON
+  ========================= */
+  function exportJson(){
+    var data = {version:'v20.1', accounts:allAccounts, activities:activities, exported_at: nowIso()};
+    var blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json;charset=utf-8'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href=url; a.download='act_acc_backup_v19_9.json';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 500);
+  }
+  $('btnExportJson').onclick = exportJson;
+  $('btnImportJson').onclick = function(){ $('fileJson').click(); };
+  $('fileJson').onchange = function(){
+    var f = $('fileJson').files && $('fileJson').files[0];
+    if(!f) return;
+    var reader = new FileReader();
+    reader.onload = function(){
+      try{
+        var data = JSON.parse(reader.result);
+        if(!data || !Array.isArray(data.accounts) || !Array.isArray(data.activities)){
+          alert('JSON结构不正确'); return;
+        }
+        putMany(STORE_ACC, data.accounts, function(err){
+          if(err){ alert('导入账号失败'); return; }
+          putMany(STORE_ACT, data.activities, function(err2){
+            if(err2){ alert('导入活动失败'); return; }
+            loadAll(function(){
+              toast('已导入JSON');
+              refreshStats();
+              renderAccounts();
+              renderActivities();
+            });
+          });
+        });
+      }catch(e){
+        alert('JSON解析失败');
+      }
+    };
+    reader.readAsText(f,'utf-8');
+  };
+
+  $('btnClearAll').onclick = function(){
+    if(!confirm('确认清空全部数据？\n\n这会删除：账号库、活动、所有报名/中奖/付款记录。\n\n此操作不可恢复（建议先导出 JSON 备份）。')) return;
+    deleteAllData(function(err){
+      if(err){ alert('清空失败：' + (err.message||err)); return; }
+      alert('已清空。页面将自动刷新。');
+      location.reload();
+    });
+  };
+
+  /* =========================
+     Init
+  ========================= */
+  loadAll(function(err){
+    if(err){ alert('初始化失败：'+(err.message||err)); return; }
+    refreshStats();
+    renderAccounts();
+    renderActivities();
+    toast('已加载 v20.1');
+    setTab('Import');
+  });
+
+})(); // IIFE end
+/* =========================
+   Cloud Sync (Vercel proxy)
+   ========================= */
+(function(){
+  function q(id){ return document.getElementById(id); }
+
+  function normalizeBase(u){
+    if(!u) return '';
+    u = u.trim();
+    if(!u) return '';
+    u = u.replace(/\/+$/,''); // remove trailing slash
+    return u;
+  }
+
+  function getSyncCfg(){
+    return {
+      baseUrl: normalizeBase((q('syncBaseUrl') && q('syncBaseUrl').value) || localStorage.getItem('OPS_SYNC_BASEURL_V1') || ''),
+      token: ((q('syncAdminToken') && q('syncAdminToken').value) || localStorage.getItem('OPS_SYNC_TOKEN_V1') || '').trim()
+    };
+  }
+  function saveSyncCfg(){
+    var cfg = getSyncCfg();
+    if(cfg.baseUrl) localStorage.setItem('OPS_SYNC_BASEURL_V1', cfg.baseUrl);
+    if(cfg.token) localStorage.setItem('OPS_SYNC_TOKEN_V1', cfg.token);
+  }
+
+  function setStatus(msg){
+    var el = q('syncStatus');
+    if(el) el.textContent = '状态：' + msg;
+  }
+
+  function apiFetch(path, opts){
+    var cfg = getSyncCfg();
+    if(!cfg.baseUrl) throw new Error('请先填写同步 API Base URL');
+    if(!cfg.token) throw new Error('请先填写管理员同步口令');
+    saveSyncCfg();
+    opts = opts || {};
+    opts.headers = Object.assign({}, opts.headers || {}, {
+      'x-admin-token': cfg.token
+    });
+    return fetch(cfg.baseUrl + path, opts);
+  }
+
+  function snapshotFromLocal(cb){
+    // local IndexedDB structure:
+    // accounts: {account, tag, status, win_count, updated_at, ...}
+    // activities: {id, name, created_at, updated_at, members:{account:{applied,won,paid}}}
+    getAll(STORE_ACC, function(e1, accs){
+      if(e1) return cb(e1);
+      getAll(STORE_ACT, function(e2, acts){
+        if(e2) return cb(e2);
+
+        // map to cloud schema
+        var accounts = (accs||[]).map(function(a){
+          var out = {
+            account: a.account,
+            tag: a.tag || '',
+            status: a.status || '',
+            win_count: (typeof a.win_count==='number') ? a.win_count : (a.winCount||0),
+            data: a, // keep full record
+            updated_at: a.updated_at || a.updatedAt || nowIso()
+          };
+          return out;
+        });
+
+        var activities = (acts||[]).map(function(a){
+          return {
+            id: a.id,
+            name: a.name || '',
+            created_at: a.created_at || a.createdAt || nowIso(),
+            updated_at: a.updated_at || a.updatedAt || nowIso()
+          };
+        });
+
+        var entries = [];
+        (acts||[]).forEach(function(a){
+          var mem = a.members || {};
+          Object.keys(mem).forEach(function(acct){
+            var st = mem[acct] || {};
+            entries.push({
+              activity_id: a.id,
+              account: acct,
+              is_applied: !!st.applied,
+              is_winner: !!st.won,
+              is_paid: !!st.paid,
+              updated_at: a.updated_at || a.updatedAt || nowIso()
+            });
+          });
+        });
+
+        cb(null, { accounts: accounts, activities: activities, entries: entries });
+      });
+    });
+  }
+
+  function applyCloudToLocal(payload, cb){
+    // Rebuild local stores:
+    // accounts store: keep full `data` back into local object
+    // activities store: rebuild members from entries
+    var accounts = payload.accounts || [];
+    var activities = payload.activities || [];
+    var entries = payload.entries || [];
+
+    // rebuild activities members map
+    var membersByAct = {};
+    entries.forEach(function(e){
+      if(!membersByAct[e.activity_id]) membersByAct[e.activity_id] = {};
+      membersByAct[e.activity_id][e.account] = {
+        applied: !!e.is_applied,
+        won: !!e.is_winner,
+        paid: !!e.is_paid
+      };
+    });
+
+    var localAccs = accounts.map(function(a){
+      // prefer full data if present
+      var d = (a && a.data && typeof a.data === 'object') ? a.data : {};
+      d.account = a.account;
+      d.tag = a.tag || d.tag || '';
+      d.status = a.status || d.status || '';
+      d.win_count = (typeof a.win_count === 'number') ? a.win_count : (d.win_count||0);
+      d.updated_at = a.updated_at || d.updated_at || nowIso();
+      return d;
+    });
+
+    var localActs = activities.map(function(a){
+      return {
+        id: a.id,
+        name: a.name || '',
+        created_at: a.created_at || nowIso(),
+        updated_at: a.updated_at || nowIso(),
+        members: membersByAct[a.id] || {}
+      };
+    });
+
+    clearStore(STORE_ACC, function(e1){
+      if(e1) return cb(e1);
+      clearStore(STORE_ACT, function(e2){
+        if(e2) return cb(e2);
+        putMany(STORE_ACC, localAccs, function(e3){
+          if(e3) return cb(e3);
+          putMany(STORE_ACT, localActs, function(e4){
+            if(e4) return cb(e4);
+            cb(null, { accounts: localAccs.length, activities: localActs.length, entries: entries.length });
+          });
+        });
+      });
+    });
+  }
+
+  async function ping(){
+    setStatus('测试连接中…');
+    var r = await apiFetch('/api/sync/ping', { method:'GET' });
+    if(!r.ok) throw new Error('连接失败：' + r.status);
+    var j = await r.json();
+    setStatus('连接成功：' + (j.ts||'ok'));
+  }
+
+  async function pull(){
+    if(!confirm('将用云端数据覆盖本地 IndexedDB（本地更改会被覆盖）。继续？')) return;
+    setStatus('拉取中…');
+    var r = await apiFetch('/api/sync/pull', { method:'GET' });
+    var j = await r.json();
+    if(!j.ok) throw new Error(j.error||'pull failed');
+
+    await new Promise(function(resolve, reject){
+      applyCloudToLocal(j, function(err, stats){
+        if(err) return reject(err);
+        resolve(stats);
+      });
+    });
+
+    // refresh in-memory and UI
+    loadAll(function(){
+      setStatus('拉取完成：账号 ' + accounts.length + '，活动 ' + activities.length);
+      toast('云端拉取完成');
+      renderAccounts();
+      if(view==='acts'){ renderActView(); }
+    });
+  }
+
+  async function push(){
+    setStatus('推送中…');
+    var del = {};
+    try{ del = JSON.parse(localStorage.getItem('OPS_SYNC_DELETES_V1')||'{}') || {}; }catch(e){ del = {}; }
+    var snap = await new Promise(function(resolve, reject){
+      snapshotFromLocal(function(err, s){
+        if(err) return reject(err);
+        resolve(s);
+      });
+    });
+
+    var r = await apiFetch('/api/sync/push', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ snapshot: snap, deletes: del })
+    });
+    var j = await r.json();
+    if(!j.ok) throw new Error(j.error||'push failed');
+
+    // clear deletes after successful push
+    localStorage.removeItem('OPS_SYNC_DELETES_V1');
+
+    setStatus('推送完成：账号 ' + j.received.accounts + '，活动 ' + j.received.activities + '，成员 ' + j.received.entries + '（删除活动 ' + j.deleted.activities + '）');
+    toast('云端推送完成');
+  }
+
+  function initSyncUI(){
+    var base = q('syncBaseUrl');
+    var tok = q('syncAdminToken');
+    if(base && !base.value){
+      base.value = localStorage.getItem('OPS_SYNC_BASEURL_V1') || '';
+    }
+    if(tok && !tok.value){
+      tok.value = localStorage.getItem('OPS_SYNC_TOKEN_V1') || '';
+    }
+
+    var b1=q('btnSyncPing'), b2=q('btnSyncPull'), b3=q('btnSyncPush');
+    if(b1) b1.onclick = function(){ try{ ping().catch(function(e){ alert(e.message||e); setStatus('连接失败'); }); }catch(e){ alert(e.message||e); } };
+    if(b2) b2.onclick = function(){ try{ pull().catch(function(e){ alert(e.message||e); setStatus('拉取失败'); }); }catch(e){ alert(e.message||e); } };
+    if(b3) b3.onclick = function(){ try{ push().catch(function(e){ alert(e.message||e); setStatus('推送失败'); }); }catch(e){ alert(e.message||e); } };
+  }
+
+  // hook when switching to backup view
+  var _showView = window.showView || null; // may not exist
+  // We don't rely on showView; instead, init once on DOM ready.
+  document.addEventListener('DOMContentLoaded', initSyncUI);
+})();
+</script>
+</body>
+</html>
