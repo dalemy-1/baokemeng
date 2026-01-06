@@ -1,3 +1,13 @@
+import { withCors } from './_util.js';
+
+export default async function handler(req, res) {
+  if (withCors(req, res)) return;
+
+  res.status(200).json({
+    ok: true,
+    ts: new Date().toISOString(),
+  });
+}
 function withCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
