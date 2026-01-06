@@ -1,4 +1,4 @@
-import { applyCors, requireAdminToken, nowIso, sendJson, handleError, readJson } from "./_util.js";
+import { applyCors, requireAdminToken, nowIso, sendJson, handleError } from "./_util.js";
 
 export default async function handler(req, res) {
   try {
@@ -9,28 +9,7 @@ export default async function handler(req, res) {
     const auth = requireAdminToken(req);
     if (!auth.ok) return sendJson(res, 401, { ok: false, error: auth.error });
 
-    // Echo debug: confirm body parsing in Vercel runtime
-    let body = {};
-    let parse_ok = true;
-    try {
-      body = await readJson(req);
-    } catch (e) {
-      parse_ok = false;
-    }
-
-    const bodyType = (req.body === undefined) ? "undefined" : (req.body === null ? "null" : typeof req.body);
-    const bodyStrPreview = (typeof req.body === "string") ? req.body.slice(0, 500) : undefined;
-
-    return sendJson(res, 200, {
-      ok: true,
-      ts: nowIso(),
-      note: "ping ok (v21 vercel api ESM) + echo",
-      body_type: bodyType,
-      body_preview: bodyStrPreview,
-      parse_ok,
-      body_keys: body && typeof body === "object" ? Object.keys(body).slice(0, 50) : [],
-      body
-    });
+    return sendJson(res, 200, { ok: true, ts: nowIso(), note: "ping ok (v21 vercel api ESM release)" });
   } catch (err) {
     return handleError(res, err);
   }

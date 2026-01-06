@@ -6,13 +6,6 @@ const TABLE_MAP = {
   entries: "ops_activity_entries",
 };
 
-function countUpserts(upserts) {
-  const out = { accounts: 0, activities: 0, entries: 0 };
-  if (!upserts || typeof upserts !== "object") return out;
-  for (const k of Object.keys(out)) out[k] = Array.isArray(upserts[k]) ? upserts[k].length : 0;
-  return out;
-}
-
 export default async function handler(req, res) {
   try {
     if (applyCors(req, res)) return;
@@ -25,18 +18,9 @@ export default async function handler(req, res) {
     let body = {};
     try {
       body = await readJson(req);
-    } catch (e) {
+    } catch {
       return sendJson(res, 400, { ok: false, error: "invalid_json" });
     }
-
-    const received = {
-      body_type: (req.body === undefined) ? "undefined" : (req.body === null ? "null" : typeof req.body),
-      upserts_count: countUpserts(body.upserts),
-      deletes_count: Array.isArray(body.deletes) ? body.deletes.length : 0,
-      has_upserts: !!body.upserts,
-      has_deletes: !!body.deletes,
-      keys: Object.keys(body || {}).slice(0, 50),
-    };
 
     const sb = await supabaseAdmin();
     const applied = { accounts: 0, activities: 0, entries: 0, deletes: 0 };
@@ -53,7 +37,7 @@ export default async function handler(req, res) {
         .upsert(payload, { onConflict: "id" })
         .select("id,updated_at");
 
-      if (error) return sendJson(res, 500, { ok: false, error: "supabase_error", table: TABLE_MAP[key], detail: error.message, received });
+      if (error) return sendJson(res, 500, { ok: false, error: "supabase_error", table: TABLE_MAP[key], detail: error.message });
       applied[key] += (data || []).length;
     }
 
@@ -70,19 +54,12 @@ export default async function handler(req, res) {
           .update({ deleted_at, updated_at: nowIso() })
           .eq("id", id);
 
-        if (error) return sendJson(res, 500, { ok: false, error: "supabase_error", table, detail: error.message, received });
+        if (error) return sendJson(res, 500, { ok: false, error: "supabase_error", table, detail: error.message });
         applied.deletes += 1;
       }
     }
 
-    return sendJson(res, 200, {
-      ok: true,
-      server_ts: nowIso(),
-      received,
-      applied,
-      conflicts,
-      note: "push ok (v21 vercel api ESM) + received debug"
-    });
+    return sendJson(res, 200, { ok: true, server_ts: nowIso(), applied, conflicts, note: "push ok (v21 vercel api ESM release)" });
   } catch (err) {
     return handleError(res, err);
   }

@@ -1,4 +1,4 @@
-// ESM util (fixed readJson for Vercel Node: req.body may be string)
+// v21 Release (ESM) - stable body parsing + cors + token + supabase admin
 export function nowIso() { return new Date().toISOString(); }
 
 function parseAllowOrigins() {
