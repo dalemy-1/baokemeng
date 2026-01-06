@@ -1,10 +1,12 @@
-import { withCors } from './_util.js';
+import { cors, assertAdmin } from './_util.js';
 
 export default async function handler(req, res) {
-  if (withCors(req, res)) return;
+  if (cors(req, res)) return;
+  if (!assertAdmin(req, res)) return;
 
-  // 原有 push 逻辑保持不变
+  // 下面保持你原有 pull/push 逻辑不变
 }
+
 function withCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
