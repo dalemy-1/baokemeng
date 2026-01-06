@@ -1,5 +1,3 @@
-const { createClient } = require("@supabase/supabase-js");
-
 function nowIso() { return new Date().toISOString(); }
 
 function parseAllowOrigins() {
@@ -49,15 +47,22 @@ function requireAdminToken(req) {
 }
 
 function supabaseAdmin() {
+  // Lazy require so /api/sync/ping can run even if supabase-js is missing.
+  const { createClient } = require("@supabase/supabase-js");
+
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "";
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+
   if (!url) throw new Error("Missing env: SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL)");
   if (!key) throw new Error("Missing env: SUPABASE_SERVICE_ROLE_KEY");
+
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
 async function readJson(req) {
+  // Vercel Node runtime may already parse req.body
   if (req.body && typeof req.body === "object") return req.body;
+
   const chunks = [];
   for await (const c of req) chunks.push(c);
   const raw = Buffer.concat(chunks).toString("utf-8").trim();
@@ -65,10 +70,26 @@ async function readJson(req) {
   try { return JSON.parse(raw); } catch { throw new Error("invalid_json"); }
 }
 
+function sendJson(res, statusCode, obj) {
+  res.statusCode = statusCode;
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.end(JSON.stringify(obj));
+}
+
+function handleError(res, err, extra = {}) {
+  const debug = (process.env.DEBUG_SYNC || "").toLowerCase() === "1" || (process.env.DEBUG_SYNC || "").toLowerCase() === "true";
+  const msg = err && err.message ? err.message : String(err);
+  const out = { ok: false, error: "internal_error", detail: msg, ...extra };
+  if (debug) out.stack = err && err.stack ? String(err.stack).slice(0, 4000) : undefined;
+  sendJson(res, 500, out);
+}
+
 module.exports = {
   nowIso,
   applyCors,
   requireAdminToken,
   supabaseAdmin,
-  readJson
+  readJson,
+  sendJson,
+  handleError,
 };
