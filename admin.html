@@ -343,22 +343,6 @@
    Safe utilities (NO async)
 ========================= */
 (function(){
-// ===== Cloud Sync Status Helper =====
-// 修复：setStatus 未定义导致按钮点击报错
-function setStatus(msg){
-  msg = String(msg||'');
-  try{
-    var el = document.getElementById('syncStatus');
-    if(el) el.textContent = msg;
-  }catch(e){}
-  try{
-    // 兼容你原系统的 toast
-    if(typeof toast === 'function' && msg) toast(msg);
-  }catch(e){}
-  try{ console.log('[SYNC]', msg); }catch(e){}
-}
-
-
   var toastEl = document.getElementById('toast');
   var toastT = null;
   function toast(msg){
@@ -1647,7 +1631,23 @@ $('actSearch').value = '';
 
   function q(id){ return document.getElementById(id); }
 
-  function normalizeBase(input){
+  
+
+// ===== Cloud Sync Status Helper (global) =====
+// 修复：setStatus 未定义导致按钮点击报错
+window.setStatus = function(msg){
+  msg = String(msg||'');
+  try{
+    var el = document.getElementById('syncStatus');
+    if(el) el.textContent = msg;
+  }catch(e){}
+  try{
+    if(typeof toast === 'function' && msg) toast(msg);
+  }catch(e){}
+  try{ console.log('[SYNC]', msg); }catch(e){}
+};
+
+function normalizeBase(input){
     // Accept either:
     // 1) https://xxx.vercel.app
     // 2) https://xxx.vercel.app/api/sync/pull?v=xxx
@@ -1681,7 +1681,6 @@ $('actSearch').value = '';
     // baseUrl 允许留空：同域（推荐 Vercel 同域 / Next.js）
     var base = normalizeBase(q('syncBaseUrl').value);
     var token = sanitizeToken(q('syncAdminToken').value);
-    // base 为空 => 同域
     if(!base) base = '';
     if(!token) throw new Error('请填写管理员同步口令（x-admin-token）');
     return { baseUrl: base, token: token };
@@ -1769,7 +1768,6 @@ $('actSearch').value = '';
             var s = localStorage.getItem('OPS_SYNC_DELETES_V1') || '[]';
             var arr = JSON.parse(s);
             if(Array.isArray(arr) && arr.length){
-              // 仅发送活动删除（你当前系统的删除对象是活动）
               return { activities: arr };
             }
           }catch(e){}
