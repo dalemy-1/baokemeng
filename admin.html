@@ -275,7 +275,7 @@
             </div>
             <div class="row" style="gap:10px;flex-wrap:wrap">
               <div style="flex:1;min-width:260px">
-                <div class="muted small">同步 API Base URLhttps://baokemeng-git-main-dalemys-projects.vercel.app</div>
+                <div class="muted small">同步 API Base URL（你的 Vercel 项目域名，例：https://xxx.vercel.app）</div>
                 <input id="syncBaseUrl" class="input" placeholder="https://你的-vercel-域名" />
               </div>
               <div style="width:260px">
@@ -1581,11 +1581,54 @@ $('actSearch').value = '';
     setTab('Import');
   });
 
+
+
+  // expose core helpers for Cloud Sync IIFE
+  try{
+    window.__OPS_ADMIN__ = window.__OPS_ADMIN__ || {};
+    window.__OPS_ADMIN__.core = {
+      getAll: getAll,
+      putMany: putMany,
+      clearStore: clearStore,
+      STORE_ACC: STORE_ACC,
+      STORE_ACT: STORE_ACT,
+      nowIso: nowIso,
+      toast: toast
+    };
+  }catch(e){}
+
 })(); // IIFE end
 /* =========================
    Cloud Sync (Vercel proxy)
    ========================= */
 (function(){
+  // Cloud Sync depends on core helpers defined in the main IIFE
+  var CORE = (window.__OPS_ADMIN__ && window.__OPS_ADMIN__.core) ? window.__OPS_ADMIN__.core : null;
+
+  function toast(msg){
+    if(CORE && CORE.toast) return CORE.toast(msg);
+    try{ alert(msg); }catch(e){}
+  }
+  function nowIso(){
+    return (CORE && CORE.nowIso) ? CORE.nowIso() : (new Date().toISOString());
+  }
+
+  var STORE_ACC = (CORE && CORE.STORE_ACC) ? CORE.STORE_ACC : 'accounts';
+  var STORE_ACT = (CORE && CORE.STORE_ACT) ? CORE.STORE_ACT : 'activities';
+
+  function getAll(store, cb){
+    if(CORE && CORE.getAll) return CORE.getAll(store, cb);
+    cb(new Error('getAll unavailable (core not initialized)'));
+  }
+  function putMany(store, arr, cb){
+    if(CORE && CORE.putMany) return CORE.putMany(store, arr, cb);
+    cb(new Error('putMany unavailable (core not initialized)'));
+  }
+  function clearStore(store, cb){
+    if(CORE && CORE.clearStore) return CORE.clearStore(store, cb);
+    cb(new Error('clearStore unavailable (core not initialized)'));
+  }
+
   function q(id){ return document.getElementById(id); }
 
   function normalizeBase(u){
