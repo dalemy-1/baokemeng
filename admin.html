@@ -1631,205 +1631,136 @@ $('actSearch').value = '';
 
   function q(id){ return document.getElementById(id); }
 
-  function normalizeBase(u){
-    if(!u) return '';
-    u = u.trim();
-    if(!u) return '';
-    u = u.replace(/\/+$/,''); // remove trailing slash
-    return u;
+  function normalizeBase(input){
+    // Accept either:
+    // 1) https://xxx.vercel.app
+    // 2) https://xxx.vercel.app/api/sync/pull?v=xxx
+    // 3) xxx.vercel.app
+    // We normalize to ORIGIN only: https://xxx.vercel.app
+    input = String(input||'').trim();
+    if(!input) return '';
+    // remove accidental quotes/spaces
+    input = input.replace(/^['"]|['"]$/g,'').trim();
+
+    // If user pasted full endpoint, keep origin only.
+    try{
+      if(!/^https?:\/\//i.test(input)) input = 'https://' + input;
+      var u = new URL(input);
+      return u.origin;
+    }catch(e){
+      // very fallback: strip /api... and query/hash manually
+      input = input.split('#')[0].split('?')[0];
+      return input.replace(/\/api\/.*$/,'').replace(/\/+$/,'');
+    }
+  }
+
+  function sanitizeToken(t){
+    t = String(t||'').trim();
+    // Remove invisible / non-ASCII characters that can break fetch headers
+    t = t.replace(/[^\x20-\x7E]/g,'').trim();
+    return t;
   }
 
   function getSyncCfg(){
-    return {
-      baseUrl: normalizeBase((q('syncBaseUrl') && q('syncBaseUrl').value) || localStorage.getItem('OPS_SYNC_BASEURL_V1') || ''),
-      token: ((q('syncAdminToken') && q('syncAdminToken').value) || localStorage.getItem('OPS_SYNC_TOKEN_V1') || '').trim()
-    };
+    var base = normalizeBase(q('syncBaseUrl').value);
+    var token = sanitizeToken(q('syncAdminToken').value);
+    if(!base) throw new Error('请填写同步 API Base URL（示例：https://xxx.vercel.app）');
+    if(!token) throw new Error('请填写管理员同步口令（x-admin-token）');
+    return { baseUrl: base, token: token };
   }
-  function saveSyncCfg(){
+
+  async function apiFetch(path, opt){
+    opt = opt || {};
     var cfg = getSyncCfg();
-    if(cfg.baseUrl) localStorage.setItem('OPS_SYNC_BASEURL_V1', cfg.baseUrl);
-    if(cfg.token) localStorage.setItem('OPS_SYNC_TOKEN_V1', cfg.token);
-  }
 
-  function setStatus(msg){
-    var el = q('syncStatus');
-    if(el) el.textContent = '状态：' + msg;
-  }
+    // Always call Vercel function endpoints on that origin
+    var url = cfg.baseUrl + path;
 
-  function apiFetch(path, opts){
-    var cfg = getSyncCfg();
-    if(!cfg.baseUrl) throw new Error('请先填写同步 API Base URL');
-    if(!cfg.token) throw new Error('请先填写管理员同步口令');
-    saveSyncCfg();
-    opts = opts || {};
-    opts.headers = Object.assign({}, opts.headers || {}, {
-      'x-admin-token': cfg.token
-    });
-    return fetch(cfg.baseUrl + path, opts);
-  }
+    var headers = opt.headers || {};
+    headers['x-admin-token'] = cfg.token;
 
-  function snapshotFromLocal(cb){
-    // local IndexedDB structure:
-    // accounts: {account, tag, status, win_count, updated_at, ...}
-    // activities: {id, name, created_at, updated_at, members:{account:{applied,won,paid}}}
-    getAll(STORE_ACC, function(e1, accs){
-      if(e1) return cb(e1);
-      getAll(STORE_ACT, function(e2, acts){
-        if(e2) return cb(e2);
+    // If posting JSON, ensure content-type exists
+    if(opt.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
 
-        // map to cloud schema
-        var accounts = (accs||[]).map(function(a){
-          var out = {
-            account: a.account,
-            tag: a.tag || '',
-            status: a.status || '',
-            win_count: (typeof a.win_count==='number') ? a.win_count : (a.winCount||0),
-            data: a, // keep full record
-            updated_at: a.updated_at || a.updatedAt || nowIso()
-          };
-          return out;
-        });
-
-        var activities = (acts||[]).map(function(a){
-          return {
-            id: a.id,
-            name: a.name || '',
-            created_at: a.created_at || a.createdAt || nowIso(),
-            updated_at: a.updated_at || a.updatedAt || nowIso()
-          };
-        });
-
-        var entries = [];
-        (acts||[]).forEach(function(a){
-          var mem = a.members || {};
-          Object.keys(mem).forEach(function(acct){
-            var st = mem[acct] || {};
-            entries.push({
-              activity_id: a.id,
-              account: acct,
-              is_applied: !!st.applied,
-              is_winner: !!st.won,
-              is_paid: !!st.paid,
-              updated_at: a.updated_at || a.updatedAt || nowIso()
-            });
-          });
-        });
-
-        cb(null, { accounts: accounts, activities: activities, entries: entries });
-      });
-    });
-  }
-
-  function applyCloudToLocal(payload, cb){
-    // Rebuild local stores:
-    // accounts store: keep full `data` back into local object
-    // activities store: rebuild members from entries
-    var accounts = payload.accounts || [];
-    var activities = payload.activities || [];
-    var entries = payload.entries || [];
-
-    // rebuild activities members map
-    var membersByAct = {};
-    entries.forEach(function(e){
-      if(!membersByAct[e.activity_id]) membersByAct[e.activity_id] = {};
-      membersByAct[e.activity_id][e.account] = {
-        applied: !!e.is_applied,
-        won: !!e.is_winner,
-        paid: !!e.is_paid
-      };
+    var r = await fetch(url, {
+      method: opt.method || 'GET',
+      headers: headers,
+      body: opt.body,
+      mode: 'cors',
+      credentials: 'omit',
+      cache: 'no-store',
     });
 
-    var localAccs = accounts.map(function(a){
-      // prefer full data if present
-      var d = (a && a.data && typeof a.data === 'object') ? a.data : {};
-      d.account = a.account;
-      d.tag = a.tag || d.tag || '';
-      d.status = a.status || d.status || '';
-      d.win_count = (typeof a.win_count === 'number') ? a.win_count : (d.win_count||0);
-      d.updated_at = a.updated_at || d.updated_at || nowIso();
-      return d;
-    });
+    var txt = await r.text();
+    var data = null;
+    try{ data = txt ? JSON.parse(txt) : null; }catch(e){ data = { ok:false, error: txt || ('HTTP '+r.status) }; }
 
-    var localActs = activities.map(function(a){
-      return {
-        id: a.id,
-        name: a.name || '',
-        created_at: a.created_at || nowIso(),
-        updated_at: a.updated_at || nowIso(),
-        members: membersByAct[a.id] || {}
-      };
-    });
-
-    clearStore(STORE_ACC, function(e1){
-      if(e1) return cb(e1);
-      clearStore(STORE_ACT, function(e2){
-        if(e2) return cb(e2);
-        putMany(STORE_ACC, localAccs, function(e3){
-          if(e3) return cb(e3);
-          putMany(STORE_ACT, localActs, function(e4){
-            if(e4) return cb(e4);
-            cb(null, { accounts: localAccs.length, activities: localActs.length, entries: entries.length });
-          });
-        });
-      });
-    });
+    if(!r.ok || (data && data.ok === false)){
+      var msg = (data && (data.error || data.message)) ? (data.error || data.message) : ('HTTP '+r.status);
+      var err = new Error(msg);
+      err.httpStatus = r.status;
+      err.payload = data;
+      throw err;
+    }
+    return data;
   }
 
   async function ping(){
-    setStatus('测试连接中…');
-    var r = await apiFetch('/api/sync/ping', { method:'GET' });
-    if(!r.ok) throw new Error('连接失败：' + r.status);
-    var j = await r.json();
-    setStatus('连接成功：' + (j.ts||'ok'));
+    try{
+      setStatus('测试连接中…');
+      var j = await apiFetch('/api/sync/ping', { method:'GET' });
+      setStatus('连接成功：' + (j.ts||j.server_time||'ok'));
+    }catch(e){
+      setStatus('连接失败：' + (e.message||String(e)));
+      alert(e.message||String(e));
+    }
   }
 
   async function pull(){
-    if(!confirm('将用云端数据覆盖本地 IndexedDB（本地更改会被覆盖）。继续？')) return;
-    setStatus('拉取中…');
-    var r = await apiFetch('/api/sync/pull', { method:'GET' });
-    var j = await r.json();
-    if(!j.ok) throw new Error(j.error||'pull failed');
+    try{
+      if(!confirm('将用云端数据覆盖本地 IndexedDB（本地更改会被覆盖）。继续？')) return;
+      setStatus('拉取中…');
+      var j = await apiFetch('/api/sync/pull', { method:'POST', body:'{}', headers:{'Content-Type':'application/json'} });
 
-    await new Promise(function(resolve, reject){
-      applyCloudToLocal(j, function(err, stats){
-        if(err) return reject(err);
-        resolve(stats);
+      await new Promise(function(resolve, reject){
+        applyCloudToLocal(j, function(err, stats){
+          if(err) return reject(err);
+          resolve(stats);
+        });
       });
-    });
 
-    // refresh in-memory and UI
-    loadAll(function(){
-      setStatus('拉取完成：账号 ' + accounts.length + '，活动 ' + activities.length);
-      toast('云端拉取完成');
-      renderAccounts();
-      if(view==='acts'){ renderActView(); }
-    });
+      setStatus('拉取完成：' + (j.pulled_at||j.server_time||'ok'));
+      alert('拉取完成');
+    }catch(e){
+      setStatus('拉取失败：' + (e.message||String(e)));
+      alert(e.message||String(e));
+    }
   }
 
   async function push(){
-    setStatus('推送中…');
-    var del = {};
-    try{ del = JSON.parse(localStorage.getItem('OPS_SYNC_DELETES_V1')||'{}') || {}; }catch(e){ del = {}; }
-    var snap = await new Promise(function(resolve, reject){
-      snapshotFromLocal(function(err, s){
-        if(err) return reject(err);
-        resolve(s);
+    try{
+      if(!confirm('将用本地 IndexedDB 推送覆盖云端表数据。继续？')) return;
+      setStatus('推送中…');
+
+      var snapshot = await dumpLocalSnapshot();
+
+      var payload = {
+        snapshot: snapshot,
+        deletes: { activities: [] }
+      };
+
+      var j = await apiFetch('/api/sync/push', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify(payload)
       });
-    });
 
-    var r = await apiFetch('/api/sync/push', {
-      method:'POST',
-      headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({ snapshot: snap, deletes: del })
-    });
-    var j = await r.json();
-    if(!j.ok) throw new Error(j.error||'push failed');
-
-    // clear deletes after successful push
-    localStorage.removeItem('OPS_SYNC_DELETES_V1');
-
-    setStatus('推送完成：账号 ' + j.received.accounts + '，活动 ' + j.received.activities + '，成员 ' + j.received.entries + '（删除活动 ' + j.deleted.activities + '）');
-    toast('云端推送完成');
+      setStatus('推送完成：账号 ' + (j.received?.accounts ?? 0) + '，活动 ' + (j.received?.activities ?? 0) + '，记录 ' + (j.received?.entries ?? 0) + '（删除活动 ' + (j.deleted?.activities ?? 0) + '）');
+      alert('推送完成');
+    }catch(e){
+      setStatus('推送失败：' + (e.message||String(e)));
+      alert(e.message||String(e));
+    }
   }
 
   function initSyncUI(){
