@@ -1,34 +1,11 @@
 // api/sync/ping.js (ESM)
-
-function applyCors(req, res) {
-  const allowOrigin = "https://baokemeng-orcin.vercel.app";
-  const origin = req.headers.origin;
-
-  // 精确允许前端域名（最稳）
-  if (origin === allowOrigin) {
-    res.setHeader("Access-Control-Allow-Origin", allowOrigin);
-  }
-
-  res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Content-Type, x-admin-token, Cache-Control, Pragma"
-  );
-
-  if (req.method === "OPTIONS") {
-    res.status(200).end();
-    return true;
-  }
-  return false;
-}
+import { cors, handleOptions } from "./_util.js";
 
 export default async function handler(req, res) {
-  if (applyCors(req, res)) return;
+  if (handleOptions(req, res)) return;
 
-  res.status(200).json({
-    ok: true,
-    ts: new Date().toISOString(),
-    note: "ping ok (cors from function)"
-  });
+  cors(res);
+  res.statusCode = 200;
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.end(JSON.stringify({ ok: true, ts: new Date().toISOString(), note: "ping ok (util)" }));
 }
