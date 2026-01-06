@@ -1,14 +1,4 @@
-// api/sync/push.js (ESM)
-// 接收本地快照并写入云端（支持 deletes.activities）
-// body: { snapshot: { accounts:[], activities:[], entries:[] }, deletes?: { activities?:[] } }
-import { cors, handleOptions, auth, getSupabase, bad, serverErr, TABLES, CONFLICT } from "./_util.js";
-
-async function readJsonBody(req) {
-  const chunks = [];
-  for await (const c of req) chunks.push(c);
-  const raw = Buffer.concat(chunks).toString("utf-8") || "{}";
-  return JSON.parse(raw);
-}
+import { cors, handleOptions, auth, getSupabase, bad, serverErr, readJsonBody } from "./_util.js";
 
 export default async function handler(req, res) {
   if (handleOptions(req, res)) return;
@@ -21,7 +11,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    if (!auth(req, res)) return;
+    if (!auth(req, res, body)) return;
 
     const body = await readJsonBody(req);
 
@@ -37,44 +27,39 @@ export default async function handler(req, res) {
 
     const sb = getSupabase();
 
-    // 1) delete activities（先删 entries 更稳）
+    // 1) delete activities (cascade deletes entries if FK is set)
     if (delActivities.length) {
-      const delE = await sb.from(TABLES.entries).delete().in("activity_id", delActivities);
-      if (delE.error) throw delE.error;
-
-      const delA = await sb.from(TABLES.activities).delete().in("id", delActivities);
-      if (delA.error) throw delA.error;
+      const { error } = await sb.from("ops_activities").delete().in("id", delActivities);
+      if (error) throw error;
     }
 
     // 2) upsert activities
     if (activities.length) {
-      const r = await sb.from(TABLES.activities).upsert(activities, { onConflict: CONFLICT.activities });
-      if (r.error) throw r.error;
+      const { error } = await sb.from("ops_activities").upsert(activities, { onConflict: "id" });
+      if (error) throw error;
     }
 
     // 3) upsert accounts
     if (accounts.length) {
-      const r = await sb.from(TABLES.accounts).upsert(accounts, { onConflict: CONFLICT.accounts });
-      if (r.error) throw r.error;
+      const { error } = await sb.from("ops_accounts").upsert(accounts, { onConflict: "account" });
+      if (error) throw error;
     }
 
     // 4) upsert entries
     if (entries.length) {
-      const r = await sb.from(TABLES.entries).upsert(entries, { onConflict: CONFLICT.entries });
-      if (r.error) throw r.error;
+      const { error } = await sb.from("ops_activity_entries").upsert(entries, { onConflict: "activity_id,account" });
+      if (error) throw error;
     }
 
     cors(res);
     res.statusCode = 200;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.end(
-      JSON.stringify({
-        ok: true,
-        received: { accounts: accounts.length, activities: activities.length, entries: entries.length },
-        deleted: { activities: delActivities.length },
-        server_time: new Date().toISOString(),
-      })
-    );
+    res.end(JSON.stringify({
+      ok: true,
+      received: { accounts: accounts.length, activities: activities.length, entries: entries.length },
+      deleted: { activities: delActivities.length },
+      server_time: new Date().toISOString(),
+    }));
   } catch (e) {
     serverErr(res, e?.message || String(e));
   }
