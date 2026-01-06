@@ -1,4 +1,4 @@
-// ESM version for repos with package.json: { "type": "module" }
+// ESM util (fixed readJson for Vercel Node: req.body may be string)
 export function nowIso() { return new Date().toISOString(); }
 
 function parseAllowOrigins() {
@@ -48,7 +48,6 @@ export function requireAdminToken(req) {
 }
 
 export async function supabaseAdmin() {
-  // Dynamic import so ping can work even if dependency is missing.
   const mod = await import("@supabase/supabase-js");
   const createClient = mod.createClient;
 
@@ -61,8 +60,19 @@ export async function supabaseAdmin() {
 }
 
 export async function readJson(req) {
-  if (req.body && typeof req.body === "object") return req.body;
+  // Vercel Node may already parse body:
+  // - object for JSON
+  // - string for JSON text
+  if (req.body != null) {
+    if (typeof req.body === "object") return req.body;
+    if (typeof req.body === "string") {
+      const s = req.body.trim();
+      if (!s) return {};
+      try { return JSON.parse(s); } catch { throw new Error("invalid_json"); }
+    }
+  }
 
+  // Fallback: read raw stream
   const chunks = [];
   for await (const c of req) chunks.push(c);
   const raw = Buffer.concat(chunks).toString("utf-8").trim();
