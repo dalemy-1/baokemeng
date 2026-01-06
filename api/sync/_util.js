@@ -1,40 +1,36 @@
-export function cors(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+// api/sync/_util.js
+export function applyCors(req, res) {
+  const origin = req.headers.origin || '*';
+
+  // 关键：明确回显 Origin，并告知缓存按 Origin 区分
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Vary', 'Origin');
+
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'Content-Type, x-admin-token'
+    'Content-Type, x-admin-token, Cache-Control, Pragma'
   );
 
+  // 预检直接结束
   if (req.method === 'OPTIONS') {
     res.status(200).end();
-    return true;
+    return true; // 表示已处理
   }
   return false;
 }
 
-
-export function assertAdmin(req, res) {
+export function requireAdmin(req, res) {
   const expected = process.env.ADMIN_SYNC_TOKEN || '';
-  const got = (req.headers['x-admin-token'] || '').toString();
+  const got = String(req.headers['x-admin-token'] || '');
 
-  // 如果没配置环境变量，直接给出明确错误，避免“静默 500”
   if (!expected) {
-    res.status(500).json({ ok: false, error: 'ADMIN_SYNC_TOKEN missing in server env' });
+    res.status(500).json({ ok: false, error: 'ADMIN_SYNC_TOKEN missing' });
     return false;
   }
-
   if (got !== expected) {
     res.status(401).json({ ok: false, error: 'unauthorized' });
     return false;
   }
   return true;
-}
-
-export function ok(res, data = {}) {
-  res.status(200).json({ ok: true, ...data });
-}
-
-export function fail(res, status, message, extra = {}) {
-  res.status(status).json({ ok: false, error: message, ...extra });
 }
