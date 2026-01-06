@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>账号-活动-中奖统计系统 v20.3（账号库列表样式修复）</title>
+  <title>账号-活动-中奖统计系统 v21.0（云端同步正式版）</title>
   <style>
     :root{
       --bg:#f6f8fb;
@@ -82,7 +82,7 @@
 </head>
 <body>
   <div class="topbar">
-    <div class="title">账号-活动-中奖统计系统 v20.1（账号库列表样式修复）</div>
+    <div class="title">账号-活动-中奖统计系统 v21.0（云端同步正式版）</div>
     <div class="build">BUILD: v20.2 · 修复：点击无反应（去除 async/危险替换）· 账号详情弹窗强制 · 活动卡片/进入/返回稳定</div>
     <div class="tabs">
       <button class="tab active" id="tabImport">批量导入</button>
@@ -275,7 +275,7 @@
             </div>
             <div class="row" style="gap:10px;flex-wrap:wrap">
               <div style="flex:1;min-width:260px">
-                <div class="muted small">同步 API Base URLhttps://baokemeng-git-main-dalemys-projects.vercel.app/api/sync/pull?v=20260107a</div>
+                <div class="muted small">同步 API Base URL（留空=当前域名；可粘贴完整 /api/sync/pull 链接，会自动提取域名）</div>
                 <input id="syncBaseUrl" class="input" placeholder="https://你的-vercel-域名" />
               </div>
               <div style="width:260px">
@@ -1720,7 +1720,31 @@ $('actSearch').value = '';
     try{
       if(!confirm('将用云端数据覆盖本地 IndexedDB（本地更改会被覆盖）。继续？')) return;
       setStatus('拉取中…');
-      var j = await apiFetch('/api/sync/pull', { method:'POST', body:'{}', headers:{'Content-Type':'application/json'} });
+
+      // Incremental pull: if we have last server_ts, use it; otherwise full pull.
+      var since = localStorage.getItem('OPS_SYNC_LAST_TS_V1') || '';
+      since = String(since||'').trim();
+      var bodyObj = {};
+      if(since){
+        bodyObj.since = since;
+        bodyObj.limit = 2000;
+      }else{
+        bodyObj.limit = 2000;
+      }
+
+      var j;
+      try{
+        j = await apiFetch('/api/sync/pull', { method:'POST', body: JSON.stringify(bodyObj), headers:{'Content-Type':'application/json'} });
+      }catch(e){
+        // If since is invalid (common when user pasted placeholder), clear and retry full pull once.
+        if(e && e.payload && e.payload.error === 'invalid_since'){
+          localStorage.removeItem('OPS_SYNC_LAST_TS_V1');
+          bodyObj = { limit: 2000 };
+          j = await apiFetch('/api/sync/pull', { method:'POST', body: JSON.stringify(bodyObj), headers:{'Content-Type':'application/json'} });
+        }else{
+          throw e;
+        }
+      }
 
       await new Promise(function(resolve, reject){
         applyCloudToLocal(j, function(err, stats){
@@ -1729,13 +1753,17 @@ $('actSearch').value = '';
         });
       });
 
-      setStatus('拉取完成：' + (j.pulled_at||j.server_time||'ok'));
+      if(j && j.server_ts){
+        localStorage.setItem('OPS_SYNC_LAST_TS_V1', j.server_ts);
+      }
+      setStatus('拉取完成：账号 ' + (j.counts?.accounts ?? (j.accounts?j.accounts.length:0)) + '，活动 ' + (j.counts?.activities ?? (j.activities?j.activities.length:0)) + '，记录 ' + (j.counts?.entries ?? (j.entries?j.entries.length:0)) + '；server_ts=' + (j.server_ts||''));
       alert('拉取完成');
     }catch(e){
       setStatus('拉取失败：' + (e.message||String(e)));
       alert(e.message||String(e));
     }
   }
+
 
   async function push(){
     try{
@@ -1744,9 +1772,17 @@ $('actSearch').value = '';
 
       var snapshot = await dumpLocalSnapshot();
 
+      // Read delete queue (soft-delete IDs)
+      var dq = { activities: [] };
+      try{
+        var raw = localStorage.getItem('OPS_SYNC_DELETES_V1') || '{}';
+        var obj = JSON.parse(raw);
+        if(obj && obj.activities && Array.isArray(obj.activities)) dq.activities = obj.activities.slice(0, 5000);
+      }catch(e){}
+
       var payload = {
         snapshot: snapshot,
-        deletes: { activities: [] }
+        deletes: dq
       };
 
       var j = await apiFetch('/api/sync/push', {
@@ -1755,13 +1791,22 @@ $('actSearch').value = '';
         body: JSON.stringify(payload)
       });
 
-      setStatus('推送完成：账号 ' + (j.received?.accounts ?? 0) + '，活动 ' + (j.received?.activities ?? 0) + '，记录 ' + (j.received?.entries ?? 0) + '（删除活动 ' + (j.deleted?.activities ?? 0) + '）');
+      // Clear delete queue after successful apply
+      if(j && j.applied && j.applied.deletes){
+        try{ localStorage.removeItem('OPS_SYNC_DELETES_V1'); }catch(e){}
+      }
+      if(j && j.server_ts){
+        localStorage.setItem('OPS_SYNC_LAST_TS_V1', j.server_ts);
+      }
+
+      setStatus('推送完成：账号 ' + (j.received?.upserts_count?.accounts ?? j.received?.accounts ?? 0) + '，活动 ' + (j.received?.upserts_count?.activities ?? j.received?.activities ?? 0) + '，记录 ' + (j.received?.upserts_count?.entries ?? j.received?.entries ?? 0) + '（删除活动 ' + (j.applied?.deletes ?? j.deleted?.activities ?? 0) + '）' + (j.server_ts ? ('；server_ts=' + j.server_ts) : ''));
       alert('推送完成');
     }catch(e){
       setStatus('推送失败：' + (e.message||String(e)));
       alert(e.message||String(e));
     }
   }
+
 
   function initSyncUI(){
     var base = q('syncBaseUrl');
