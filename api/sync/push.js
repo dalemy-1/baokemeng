@@ -1,4 +1,4 @@
-const { applyCors, requireAdminToken, supabaseAdmin, readJson, nowIso, sendJson, handleError } = require("./_util");
+import { applyCors, requireAdminToken, supabaseAdmin, readJson, nowIso, sendJson, handleError } from "./_util.js";
 
 const TABLE_MAP = {
   accounts: "ops_accounts",
@@ -6,7 +6,7 @@ const TABLE_MAP = {
   entries: "ops_activity_entries",
 };
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   try {
     if (applyCors(req, res)) return;
 
@@ -18,15 +18,14 @@ module.exports = async function handler(req, res) {
     let body = {};
     try {
       body = await readJson(req);
-    } catch (e) {
+    } catch {
       return sendJson(res, 400, { ok: false, error: "invalid_json" });
     }
 
-    const sb = supabaseAdmin();
+    const sb = await supabaseAdmin();
     const applied = { accounts: 0, activities: 0, entries: 0, deletes: 0 };
     const conflicts = [];
 
-    // upserts
     const upserts = body.upserts || {};
     for (const key of Object.keys(TABLE_MAP)) {
       const rows = Array.isArray(upserts[key]) ? upserts[key] : [];
@@ -42,7 +41,6 @@ module.exports = async function handler(req, res) {
       applied[key] += (data || []).length;
     }
 
-    // deletes
     const deletes = Array.isArray(body.deletes) ? body.deletes : [];
     if (deletes.length) {
       for (const d of deletes) {
@@ -61,8 +59,8 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    return sendJson(res, 200, { ok: true, server_ts: nowIso(), applied, conflicts, note: "push ok (v21 vercel api debug)" });
+    return sendJson(res, 200, { ok: true, server_ts: nowIso(), applied, conflicts, note: "push ok (v21 vercel api ESM)" });
   } catch (err) {
     return handleError(res, err);
   }
-};
+}

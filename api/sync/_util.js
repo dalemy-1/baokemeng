@@ -1,4 +1,5 @@
-function nowIso() { return new Date().toISOString(); }
+// ESM version for repos with package.json: { "type": "module" }
+export function nowIso() { return new Date().toISOString(); }
 
 function parseAllowOrigins() {
   return (process.env.SYNC_ALLOW_ORIGINS || "")
@@ -12,7 +13,7 @@ function getOrigin(req) {
   return Array.isArray(o) ? o[0] : o;
 }
 
-function applyCors(req, res) {
+export function applyCors(req, res) {
   const origin = getOrigin(req);
   const allowOrigins = parseAllowOrigins();
   const allowAll = allowOrigins.includes("*");
@@ -36,7 +37,7 @@ function applyCors(req, res) {
   return false;
 }
 
-function requireAdminToken(req) {
+export function requireAdminToken(req) {
   const expected = process.env.ADMIN_SYNC_TOKEN || "";
   if (!expected) return { ok: false, error: "server_missing_admin_token" };
 
@@ -46,21 +47,20 @@ function requireAdminToken(req) {
   return { ok: true };
 }
 
-function supabaseAdmin() {
-  // Lazy require so /api/sync/ping can run even if supabase-js is missing.
-  const { createClient } = require("@supabase/supabase-js");
+export async function supabaseAdmin() {
+  // Dynamic import so ping can work even if dependency is missing.
+  const mod = await import("@supabase/supabase-js");
+  const createClient = mod.createClient;
 
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "";
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-
   if (!url) throw new Error("Missing env: SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL)");
   if (!key) throw new Error("Missing env: SUPABASE_SERVICE_ROLE_KEY");
 
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
-async function readJson(req) {
-  // Vercel Node runtime may already parse req.body
+export async function readJson(req) {
   if (req.body && typeof req.body === "object") return req.body;
 
   const chunks = [];
@@ -70,26 +70,16 @@ async function readJson(req) {
   try { return JSON.parse(raw); } catch { throw new Error("invalid_json"); }
 }
 
-function sendJson(res, statusCode, obj) {
+export function sendJson(res, statusCode, obj) {
   res.statusCode = statusCode;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.end(JSON.stringify(obj));
 }
 
-function handleError(res, err, extra = {}) {
+export function handleError(res, err, extra = {}) {
   const debug = (process.env.DEBUG_SYNC || "").toLowerCase() === "1" || (process.env.DEBUG_SYNC || "").toLowerCase() === "true";
   const msg = err && err.message ? err.message : String(err);
   const out = { ok: false, error: "internal_error", detail: msg, ...extra };
   if (debug) out.stack = err && err.stack ? String(err.stack).slice(0, 4000) : undefined;
   sendJson(res, 500, out);
 }
-
-module.exports = {
-  nowIso,
-  applyCors,
-  requireAdminToken,
-  supabaseAdmin,
-  readJson,
-  sendJson,
-  handleError,
-};

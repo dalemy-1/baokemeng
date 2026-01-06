@@ -1,4 +1,4 @@
-const { applyCors, requireAdminToken, supabaseAdmin, readJson, nowIso, sendJson, handleError } = require("./_util");
+import { applyCors, requireAdminToken, supabaseAdmin, readJson, nowIso, sendJson, handleError } from "./_util.js";
 
 const TABLES = [
   { key: "accounts", name: "ops_accounts" },
@@ -6,7 +6,7 @@ const TABLES = [
   { key: "entries", name: "ops_activity_entries" },
 ];
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   try {
     if (applyCors(req, res)) return;
 
@@ -18,7 +18,7 @@ module.exports = async function handler(req, res) {
     let body = {};
     try {
       body = await readJson(req);
-    } catch (e) {
+    } catch {
       return sendJson(res, 400, { ok: false, error: "invalid_json" });
     }
 
@@ -27,7 +27,7 @@ module.exports = async function handler(req, res) {
 
     const limit = Math.min(Math.max(Number(body.limit || 2000), 1), 5000);
 
-    const sb = supabaseAdmin();
+    const sb = await supabaseAdmin();
     const out = { accounts: [], activities: [], entries: [] };
 
     for (const t of TABLES) {
@@ -43,4 +43,4 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     return handleError(res, err);
   }
-};
+}

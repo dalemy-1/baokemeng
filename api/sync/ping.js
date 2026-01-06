@@ -1,6 +1,6 @@
-const { applyCors, requireAdminToken, nowIso, sendJson, handleError } = require("./_util");
+import { applyCors, requireAdminToken, nowIso, sendJson, handleError } from "./_util.js";
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   try {
     if (applyCors(req, res)) return;
 
@@ -9,8 +9,8 @@ module.exports = async function handler(req, res) {
     const auth = requireAdminToken(req);
     if (!auth.ok) return sendJson(res, 401, { ok: false, error: auth.error });
 
-    return sendJson(res, 200, { ok: true, ts: nowIso(), note: "ping ok (v21 vercel api debug)" });
+    return sendJson(res, 200, { ok: true, ts: nowIso(), note: "ping ok (v21 vercel api ESM)" });
   } catch (err) {
     return handleError(res, err);
   }
-};
+}
