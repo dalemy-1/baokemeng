@@ -1,9 +1,20 @@
-import { cors, handleOptions } from "./_util.js";
+const { applyCors, requireAdminToken, nowIso } = require("./_util");
 
-export default async function handler(req, res) {
-  if (handleOptions(req, res)) return;
-  cors(res);
-  res.statusCode = 200;
+module.exports = async function handler(req, res) {
+  if (applyCors(req, res)) return;
+
+  if (req.method !== "POST") {
+    res.statusCode = 405;
+    return res.end(JSON.stringify({ ok: false, error: "method_not_allowed" }));
+  }
+
+  const auth = requireAdminToken(req);
+  if (!auth.ok) {
+    res.statusCode = 401;
+    return res.end(JSON.stringify({ ok: false, error: auth.error }));
+  }
+
   res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.end(JSON.stringify({ ok: true, ts: new Date().toISOString(), note: "ping ok (util)" }));
-}
+  res.statusCode = 200;
+  return res.end(JSON.stringify({ ok: true, ts: nowIso(), note: "ping ok (v21 vercel api)" }));
+};
