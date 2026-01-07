@@ -239,7 +239,9 @@ async function load(){
   $('kpiAccounts').textContent = String(accounts.length);
   $('kpiActivities').textContent = String(activities.length);
   setStatus('就绪', 'ok');
-  renderTable();
+  filtered = accounts;
+  window.filtered = filtered;
+  applyFilters();
 }
 
 function download(filename, text){
