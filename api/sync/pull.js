@@ -1,10 +1,10 @@
 import { applyCors, requireAdminToken, supabaseAdmin, readJson, nowIso, sendJson, handleError } from "./_util.js";
 
 /**
- * V24.1 FIX: pull returns { data, deletes } and will NOT 500.
- * - deletes from ops_deletes uses columns: table_name, row_id, deleted_at, source
- * - supports optional `since` (ISO) from body.since or query ?since=...
- * - main tables return rows where deleted_at IS NULL
+ * V24.2 STABLE: pull returns { data, deletes } without relying on deleted_at / updated_at columns.
+ * - Main tables: select("*") only (no filters)
+ * - Deletes queue: ops_deletes(table_name,row_id,deleted_at,source)
+ * - Supports optional since (ISO) ONLY for deletes by deleted_at; main tables still full.
  */
 
 const TABLE_MAP = {
@@ -15,7 +15,6 @@ const TABLE_MAP = {
 
 const DELETES_TABLE = "ops_deletes";
 
-/** Very small system; keep conservative limits to avoid timeouts */
 const LIMIT_MAIN = 10000;
 const LIMIT_DELETES = 10000;
 
@@ -25,17 +24,8 @@ function parseSince(req, body) {
   return s || null;
 }
 
-async function fetchMain(sb, table, since) {
-  // If your tables have updated_at, we can do incremental pull with since; otherwise return full.
-  let q = sb.from(table).select("*").is("deleted_at", null).limit(LIMIT_MAIN);
-  if (since) {
-    // Best-effort: only apply if column exists; if it doesn't, Supabase returns an error and we fallback to full.
-    const { data, error } = await q.gt("updated_at", since);
-    if (!error) return { data: data || [], error: null };
-    // fallback to full if updated_at filter fails
-    q = sb.from(table).select("*").is("deleted_at", null).limit(LIMIT_MAIN);
-  }
-  const { data, error } = await q;
+async function fetchAll(sb, table) {
+  const { data, error } = await sb.from(table).select("*").limit(LIMIT_MAIN);
   return { data: data || [], error };
 }
 
@@ -51,10 +41,10 @@ export default async function handler(req, res) {
     const body = await readJson(req);
     const since = parseSince(req, body);
 
-    // main data
+    // 1) Main data: always full (stable, schema-agnostic)
     const data = {};
     for (const [key, table] of Object.entries(TABLE_MAP)) {
-      const r = await fetchMain(sb, table, since);
+      const r = await fetchAll(sb, table);
       if (r.error) {
         return sendJson(res, 500, {
           ok: false,
@@ -67,7 +57,7 @@ export default async function handler(req, res) {
       data[key] = r.data;
     }
 
-    // deletes queue
+    // 2) Deletes: since applies ONLY here (by deleted_at)
     let dq = sb.from(DELETES_TABLE).select("table_name,row_id,deleted_at,source").limit(LIMIT_DELETES);
     if (since) dq = dq.gt("deleted_at", since);
     const { data: deletes, error: dErr } = await dq;
@@ -87,7 +77,7 @@ export default async function handler(req, res) {
       since: since || null,
       data,
       deletes: deletes || [],
-      note: "pull ok (v24.1 deletes queue enabled)",
+      note: "pull ok (v24.2 stable: no deleted_at/updated_at dependency)",
     });
   } catch (err) {
     return handleError(res, err);
