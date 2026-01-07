@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>后台（admin_v30）账号管理最小可用版</title>
+  <style>
+    :root{
+      --bg:#f6f8fb; --card:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#e6ebf2;
+      --brand:#2563eb; --danger:#dc2626; --ok:#16a34a;
+      --shadow: 0 8px 24px rgba(15,23,42,.08);
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans SC", Arial;
+    }
+    body{ margin:0; background:var(--bg); color:var(--ink); }
+    .wrap{ max-width:1100px; margin:24px auto; padding:0 16px; }
+    .top{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+    .title{ font-size:18px; font-weight:700; }
+    .badge{ font-size:12px; padding:4px 8px; border-radius:999px; background:#eef2ff; color:#3730a3; border:1px solid #e0e7ff; }
+    .card{ background:var(--card); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow); }
+    .row{ display:flex; gap:12px; flex-wrap:wrap; }
+    .p16{ padding:16px; }
+    .muted{ color:var(--muted); }
+    .kpi{ display:flex; gap:16px; flex-wrap:wrap; }
+    .kpi .item{ min-width:180px; }
+    .kpi .num{ font-size:22px; font-weight:800; }
+    .btn{ border:1px solid var(--line); background:#fff; color:var(--ink); padding:8px 12px; border-radius:10px; cursor:pointer; }
+    .btn.primary{ background:var(--brand); border-color:var(--brand); color:#fff; }
+    .btn:disabled{ opacity:.6; cursor:not-allowed; }
+    .input{ border:1px solid var(--line); border-radius:10px; padding:8px 10px; background:#fff; min-width:220px; }
+    table{ width:100%; border-collapse:collapse; }
+    th,td{ padding:10px 10px; border-bottom:1px solid var(--line); font-size:14px; vertical-align:middle; }
+    th{ text-align:left; color:#334155; background:#fafafa; position:sticky; top:0; z-index:1; }
+    a.link{ color:var(--brand); text-decoration:none; cursor:pointer; }
+    a.link:hover{ text-decoration:underline; }
+    .pill{ display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border-radius:999px; font-size:12px; border:1px solid var(--line); background:#fff; }
+    .pill.ok{ border-color:#bbf7d0; background:#f0fdf4; color:#166534; }
+    .pill.bad{ border-color:#fecaca; background:#fef2f2; color:#991b1b; }
+
+    /* modal */
+    .backdrop{ position:fixed; inset:0; background:rgba(15,23,42,.45); display:none; align-items:center; justify-content:center; padding:16px; }
+    .modal{ width:min(780px, 100%); background:#fff; border-radius:16px; border:1px solid var(--line); box-shadow:var(--shadow); overflow:hidden; }
+    .mhead{ padding:14px 16px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); }
+    .mbody{ padding:16px; }
+    .mfoot{ padding:14px 16px; display:flex; gap:10px; justify-content:flex-end; border-top:1px solid var(--line); background:#fafafa; }
+    .grid{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+    .field label{ display:block; font-size:12px; color:#475569; margin-bottom:6px; }
+    .field input{ width:100%; }
+    .note{ font-size:12px; color:var(--muted); margin-top:6px; }
+    @media (max-width:720px){ .grid{ grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div class="title">admin_v30 最小可用性重构 <span class="badge">账号：可点 → 可编辑 → 可保存 → 刷新仍在</span></div>
+      <div class="muted">IndexedDB 读取：<b>act_acc_v199</b> / store: <b>accounts</b></div>
+    </div>
+
+    <div class="row" style="margin-top:14px;">
+      <div class="card p16" style="flex:1 1 360px;">
+        <div class="kpi">
+          <div class="item">
+            <div class="muted">账号数量</div>
+            <div class="num" id="kpiAccounts">—</div>
+          </div>
+          <div class="item">
+            <div class="muted">活动数量</div>
+            <div class="num" id="kpiActivities">—</div>
+          </div>
+          <div class="item">
+            <div class="muted">状态</div>
+            <div id="kpiStatus" class="pill">初始化中…</div>
+          </div>
+        </div>
+        <div class="note">本页只做“账号库最小闭环”。同步（Push/Pull/Deletes）暂不启用，避免干扰验收。</div>
+      </div>
+
+      <div class="card p16" style="flex:1 1 360px;">
+        <div class="row" style="align-items:center;">
+          <input id="q" class="input" placeholder="搜索账号 / 标签 / 状态…" />
+          <button id="btnReload" class="btn">重新加载</button>
+          <button id="btnExportJson" class="btn">导出JSON（仅账号）</button>
+        </div>
+        <div class="note">导出用于“先验证本地可写入”，后续再接同步与云端。</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px;">
+      <div class="p16" style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+        <div><b>账号列表</b> <span class="muted" id="listInfo"></span></div>
+        <div class="muted" id="dbInfo"></div>
+      </div>
+      <div style="max-height:65vh; overflow:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:260px;">账号</th>
+              <th style="width:220px;">标签</th>
+              <th style="width:160px;">状态</th>
+              <th>更新时间</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="4" class="muted">加载中…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <div class="backdrop" id="backdrop" role="dialog" aria-modal="true">
+    <div class="modal">
+      <div class="mhead">
+        <div>
+          <div style="font-weight:800;">账号详情</div>
+          <div class="muted" id="mSub">—</div>
+        </div>
+        <button class="btn" id="btnClose">关闭</button>
+      </div>
+      <div class="mbody">
+        <div class="grid" id="form">
+          <!-- filled by js -->
+        </div>
+        <div class="note" id="saveHint"></div>
+      </div>
+      <div class="mfoot">
+        <button class="btn" id="btnEdit">编辑</button>
+        <button class="btn primary" id="btnSave" disabled>保存</button>
+        <button class="btn" id="btnCancel" disabled>取消</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
