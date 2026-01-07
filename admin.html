@@ -74,6 +74,8 @@
     .field .lbl{font-size:12px;color:var(--muted);margin-bottom:6px}
     .field .val{min-height:22px;white-space:pre-wrap;word-break:break-word}
     .field .val.edit{outline:none;border-radius:8px;padding:6px 8px;border:1px dashed rgba(59,130,246,.35);background:rgba(59,130,246,.06)}
+.field .val.ro{border-radius:8px;padding:6px 8px;border:1px solid var(--line);background:#f8fafc;color:var(--ink);opacity:.9;}
+
 
     .k{padding-top:8px;color:var(--muted);font-size:12px}
     .v{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff;cursor:pointer;word-break:break-all}
@@ -714,7 +716,11 @@ function getAll(store, cb){
       html += '<div class="field">';
       html +=   '<div class="lbl">'+escHtml(key)+'</div>';
       if(accEditing){
+        if(k==="account"){
+        html += '<div class="val ro" data-k="account">'+escHtml(v)+'</div>';
+      }else{
         html += '<div class="val edit" contenteditable="true" data-k="'+escAttr(k)+'">'+escHtml(v)+'</div>';
+      }
       }else{
         html += '<div class="val" data-copy="'+escAttr(v)+'">'+(v?escHtml(v):'<span class="muted">—</span>')+'</div>';
       }
@@ -722,6 +728,13 @@ function getAll(store, cb){
     }
     html += '</div>';
     accModalBody.innerHTML = html;
+
+    // 按编辑状态切换按钮（编辑/保存/取消）
+    try{
+      $('btnAccEdit') && $('btnAccEdit').classList.toggle('hidden', !!accEditing);
+      $('btnAccSave') && $('btnAccSave').classList.toggle('hidden', !accEditing);
+      $('btnAccCancel') && $('btnAccCancel').classList.toggle('hidden', !accEditing);
+    }catch(e){}
 
     if(!accEditing){
       var vs = accModalBody.querySelectorAll('.val');
