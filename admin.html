@@ -78,7 +78,10 @@
     .k{padding-top:8px;color:var(--muted);font-size:12px}
     .v{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff;cursor:pointer;word-break:break-all}
     .v.edit{cursor:text}
-  </style>
+  
+  .field.locked .val.edit{pointer-events:none; opacity:.7; background:#f3f6fb;}
+
+</style>
 </head>
 <body>
   <div class="topbar">
@@ -670,7 +673,8 @@ function getAll(store, cb){
   // Modal state
   var accModal = $('accModal');
   var accModalBody = $('accModalBody');
-  var accEditing=false;
+  var accEditing = false;
+  var accBackup = null;
   var accObj=null;
   var accDraft=null;
 
@@ -697,83 +701,144 @@ function getAll(store, cb){
   }
   window.closeAccModal = closeAccModal;
 
+  
   function renderAccModal(){
-    var a = accEditing ? accDraft : accObj;
-    var fields = [
-      ['活动报名','apply_title'], ['标签','tags'], ['账户','account'], ['密码','pwd'],
-      ['电话号码','phone'], ['邮编','zip'],
-      ['地址县市','addr_city'], ['地址门牌','addr_line'], ['汉字名','name_cn'], ['日语名','name_jp'],
-      ['卡名','card_name'], ['信用卡','cc'], ['CVV','cvv'], ['有效期','exp'],
-      ['出生年月','birth_ym'], ['备注1','note1'], ['备注2','note2'], ['备注3','note3'],
-      ['备注4','note4'], ['状态','status']
-    ];
-    var html = '<div class="kv4">';
-    for(var i=0;i<fields.length;i++){
-      var key = fields[i][0], k=fields[i][1];
-      var v = (a && a[k]!=null) ? String(a[k]) : '';
-      html += '<div class="field">';
-      html +=   '<div class="lbl">'+escHtml(key)+'</div>';
-      if(accEditing){
-        html += '<div class="val edit" contenteditable="true" data-k="'+escAttr(k)+'">'+escHtml(v)+'</div>';
-      }else{
-        html += '<div class="val" data-copy="'+escAttr(v)+'">'+(v?escHtml(v):'<span class="muted">—</span>')+'</div>';
-      }
-      html += '</div>';
+    var modal = $('accModal');
+    var box = $('accBox');
+    if(!modal || !box) return;
+    if(!currentAcc){
+      modal.style.display='none';
+      box.innerHTML='';
+      return;
     }
-    html += '</div>';
-    accModalBody.innerHTML = html;
 
-    if(!accEditing){
-      var vs = accModalBody.querySelectorAll('.val');
-      for(var j=0;j<vs.length;j++){
-        vs[j].onclick = function(){
-          var t = this.getAttribute('data-copy') || '';
-          if(!t) return;
-          tryCopy(t);
-          toast('已复制');
-        };
+    var a = currentAcc;
+    var fields = [
+      ['activity_name','活动报名'],
+      ['tags','标签'],
+      ['account','账号'],
+      ['pwd','密码'],
+      ['phone','电话号码'],
+      ['zip','邮编'],
+      ['addr_city','地址县市'],
+      ['addr_line','地址门牌'],
+      ['name_cn','汉字名'],
+      ['name_jp','日语名'],
+      ['card_name','卡名'],
+      ['card_num','信用卡'],
+      ['cvv','CVV'],
+      ['exp','有效期'],
+      ['dob','出生年月'],
+      ['note1','备注1'],
+      ['note2','备注2'],
+      ['note3','备注3'],
+      ['note4','备注4'],
+      ['status','状态']
+    ];
+
+    function h(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]);}); }
+
+    var html = '';
+    html += '<div class="modalHead">';
+    html +=   '<div class="modalTitle">账号详情</div>';
+    html +=   '<div class="modalMeta">点击字段复制；编辑模式下可修改并保存。</div>';
+    html +=   '<button class="btn ghost" onclick="closeAccModal()">关闭（Esc）</button>';
+    html += '</div>';
+
+    html += '<div class="accGrid">';
+    fields.forEach(function(it){
+      var k = it[0], label = it[1];
+      var v = (a && a[k]!=null) ? a[k] : '';
+      var isAccountKey = (k === 'account');
+      if(accEditing){
+        var ce = isAccountKey ? 'false' : 'true';
+        var lockCls = isAccountKey ? ' locked' : '';
+        html += '<div class="field'+lockCls+'">';
+        html +=   '<div class="lab">'+h(label)+'</div>';
+        html +=   '<div class="val edit" contenteditable="'+ce+'" data-k="'+h(k)+'">'+h(v)+'</div>';
+        html += '</div>';
+      }else{
+        html += '<div class="field">';
+        html +=   '<div class="lab">'+h(label)+'</div>';
+        html +=   '<div class="val" onclick="copyText(this)">'+h(v)+'</div>';
+        html += '</div>';
       }
+    });
+    html += '</div>';
+
+    html += '<div class="modalFoot">';
+    html +=   '<button id="btnAccEdit" class="btn" onclick="startEdit()">'+(accEditing?'编辑':'编辑')+'</button>';
+    html +=   '<button id="btnAccSave" class="btn primary" onclick="saveEdit()">保存</button>';
+    html +=   '<button id="btnAccCancel" class="btn ghost" onclick="cancelEdit()">取消</button>';
+    html +=   '<div class="spacer"></div>';
+    html +=   '<button class="btn ghost" onclick="closeAccModal()">关闭</button>';
+    html += '</div>';
+
+    box.innerHTML = html;
+
+    // 根据状态控制按钮显示
+    var bEdit = $('btnAccEdit');
+    var bSave = $('btnAccSave');
+    var bCancel = $('btnAccCancel');
+    if(accEditing){
+      if(bEdit) bEdit.style.display='none';
+      if(bSave) bSave.style.display='';
+      if(bCancel) bCancel.style.display='';
     }else{
-      var es = accModalBody.querySelectorAll('.val.edit');
-      for(var k=0;k<es.length;k++){
-        es[k].addEventListener('input', function(){
-          var kk = this.getAttribute('data-k');
-          if(!accDraft) return;
-          accDraft[kk] = this.textContent;
-        });
-      }
+      if(bEdit) bEdit.style.display='';
+      if(bSave) bSave.style.display='none';
+      if(bCancel) bCancel.style.display='none';
     }
+
+    modal.style.display='flex';
   }
 
   function startEdit(){
-    if(!accObj) return;
-    accEditing=true;
-    accDraft = JSON.parse(JSON.stringify(accObj));
+    if(!currentAcc) return;
+    accBackup = JSON.parse(JSON.stringify(currentAcc||{}));
+    accEditing = true;
     renderAccModal();
   }
-  function cancelEdit(){
-    accEditing=false;
-    accDraft=null;
-    renderAccModal();
-  }
-  function saveEdit(){
-    if(!accEditing || !accDraft) return;
-    var edits = accModalBody.querySelectorAll('.v[contenteditable="true"]');
-    for(var i=0;i<edits.length;i++){
-      var k = edits[i].getAttribute('data-k');
-      var v = edits[i].textContent || '';
-      accDraft[k] = v.trim();
-    }
-    accDraft.updated_at = nowIso();
-    // ensure key is account
-    accDraft.account = normalizeEmail(accDraft.account);
-    if(!accDraft.account){ alert('账户不能为空'); return; }
 
-    putOne(STORE_ACC, accDraft, function(err){
-      if(err){ alert('保存失败：'+(err.message||err)); return; }
-      // update in memory
-      loadAll(function(e){
-        if(e){ alert('刷新失败'); return; }
+  function cancelEdit(){
+    if(accBackup){
+      currentAcc = JSON.parse(JSON.stringify(accBackup));
+      accBackup = null;
+    }
+    accEditing = false;
+    renderAccModal();
+  }
+
+  function saveEdit(){
+    if(!currentAcc) return;
+
+    var upd = Object.assign({}, currentAcc);
+    // 账号作为 keyPath：禁止修改
+    var accountKey = (currentAcc && currentAcc.account) ? String(currentAcc.account) : '';
+    if(!accountKey){
+      alert('保存失败：账号为空（account 作为主键）');
+      return;
+    }
+
+    // 从可编辑格子读取（除 account 外）
+    var edits = document.querySelectorAll('#accBox .val.edit[data-k]');
+    edits.forEach(function(el){
+      var k = el.getAttribute('data-k');
+      var v = (el.textContent || '').trim();
+      if(k && k !== 'account') upd[k] = v;
+    });
+
+    upd.account = accountKey;
+    upd.updated_at = new Date().toISOString();
+
+    // 写入 IndexedDB（accounts store keyPath=account）
+    putOne(STORE_ACC, upd, function(e){
+      if(e){ alert('保存失败：'+(e.message||e)); return; }
+      currentAcc = upd;
+      accEditing = false;
+      // 刷新列表（避免你感觉“没保存”）
+      loadAll(function(e2){
+        if(e2){ alert('刷新失败：'+(e2.message||e2)); return; }
         renderAccounts();
         refreshStats();
         toast('已保存');
@@ -782,25 +847,7 @@ function getAll(store, cb){
     });
   }
 
-  $('btnAccClose').onclick = closeAccModal;
-  $('btnAccClose2').onclick = closeAccModal;
-  $('btnAccEdit').onclick = startEdit;
-  $('btnAccCancel').onclick = cancelEdit;
-  $('btnAccSave').onclick = saveEdit;
-  accModal.addEventListener('click', function(e){ if(e.target===accModal) closeAccModal(); });
 
-  // force account click via delegation
-  document.addEventListener('click', function(e){
-    var a = e.target && e.target.closest ? e.target.closest('a.alink') : null;
-    if(a && a.getAttribute('data-acc')){
-      e.preventDefault();
-      openAccModalByAccount(a.getAttribute('data-acc'));
-    }
-  }, true);
-
-  /* =========================
-     Activities cards / enter / back
-  ========================= */
   function renderActivities(){
     // cards always visible; detail visible only if currentActId exists
     var cardsWrap = $('actCardsWrap');
@@ -1982,72 +2029,5 @@ $('actSearch').value = '';
 </script>
 <script src="./syncclient_v22_addon_act_acc_v199_v2.js?v=2"></script>
 <script src="./syncclient_v24_addon_deletes_act_acc_v199.js?v=1"></script>
-
-<script>
-/* v26.3 patch: 账号详情“编辑/保存”一键切换 + 强制绑定保存（防止只改UI不落库） */
-(function(){
-  try{
-    var $ = window.$ || function(id){ return document.getElementById(id); };
-    var btnEdit = $('btnAccEdit');
-    var btnSave = $('btnAccSave');
-    var btnCancel = $('btnAccCancel');
-    if(!btnEdit) return;
-
-    function showSaveCancel(on){
-      if(btnSave) btnSave.style.display = on ? '' : 'none';
-      if(btnCancel) btnCancel.style.display = on ? '' : 'none';
-    }
-    function setEditMode(on){
-      // 复用原逻辑（如果存在）
-      if(typeof window.toggleReadonly === 'function') window.toggleReadonly(!on);
-      if(typeof window.toggleReadonly === 'function' && typeof window.toggleReadonly !== 'function') {}
-      // 兼容原变量
-      try{ window.editMode = !!on; }catch(e){}
-      // 按钮文案：用一个按钮完成“编辑/保存”
-      btnEdit.textContent = on ? '保存' : '编辑';
-      btnEdit.dataset.mode = on ? 'save' : 'edit';
-      showSaveCancel(on);
-    }
-
-    // 初始：如果原代码隐藏了 Save/Cancel，则保持隐藏
-    showSaveCancel(false);
-
-    btnEdit.onclick = async function(){
-      var mode = btnEdit.dataset.mode || (btnEdit.textContent.indexOf('保存')>=0 ? 'save' : 'edit');
-      if(mode === 'edit'){
-        if(typeof window.startEdit === 'function') window.startEdit();
-        setEditMode(true);
-        return;
-      }
-      // save
-      if(typeof window.saveEdit === 'function'){
-        await window.saveEdit();
-        // saveEdit 内部一般会 set editMode=false + toggleReadonly(true)；这里再兜底一次
-        setEditMode(false);
-      }else{
-        alert('保存功能缺失：未找到 saveEdit()');
-      }
-    };
-
-    if(btnSave){
-      btnSave.onclick = async function(){
-        if(typeof window.saveEdit === 'function'){ await window.saveEdit(); }
-        setEditMode(false);
-      };
-    }
-    if(btnCancel){
-      btnCancel.onclick = function(){
-        if(typeof window.cancelEdit === 'function') window.cancelEdit();
-        setEditMode(false);
-      };
-    }
-
-    // 如果原代码已在打开弹窗时设置 readonly，这里不改变，只增强按钮行为
-  }catch(e){
-    console.error('[patch-acc-save] failed', e);
-  }
-})();
-</script>
-
 </body>
 </html>
