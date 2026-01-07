@@ -661,6 +661,19 @@ function getAll(store, cb){
     }
     if(!html) html = '<tr><td colspan="5" class="muted">没有数据</td></tr>';
     body.innerHTML = html;
+    // 事件委托：点击账号打开详情（避免重渲染后事件丢失）
+    if(!body._accClickBound){
+      body._accClickBound = true;
+      body.addEventListener('click', function(ev){
+        var t = ev.target;
+        var link = t && t.closest ? t.closest('.alink') : null;
+        if(link){
+          ev.preventDefault();
+          ev.stopPropagation();
+          openAccModalByAccount(link.getAttribute('data-acc'));
+        }
+      });
+    }
   }
 
   $('accSearch').oninput = function(){ accPage=1; renderAccounts(); };
@@ -678,20 +691,25 @@ function getAll(store, cb){
   var accObj=null;
   var accDraft=null;
 
-  function openAccModalByAccount(acc){
-    acc = normalizeEmail(acc).toLowerCase();
-    var found=null;
-    for(var i=0;i<allAccounts.length;i++){
-      if(normalizeEmail(allAccounts[i].account).toLowerCase()===acc){ found=allAccounts[i]; break; }
-    }
-    if(!found){ toast('未找到账号'); return; }
-    accObj = found;
-    accEditing=false;
-    accDraft=null;
-    renderAccModal();
-    accModal.classList.remove('hidden');
-    document.body.style.overflow='hidden';
+  function openAccModalByAccount(account){
+  // 统一入口：由账号字符串找到对象，并打开“账号详情”弹窗
+  if(!account) return;
+  var a = allAccounts.find(function(x){ return x && x.account === account; });
+  if(!a){
+    alert('未找到账号：'+account);
+    return;
   }
+  currentAcc = Object.assign({}, a);
+  editMode = false;
+  renderAccModal();
+  openAccModal();
+  toggleReadonly(true);
+  // 初始化按钮状态：显示“编辑”，隐藏“保存/取消”
+  if($('btnAccEdit')) $('btnAccEdit').style.display = '';
+  if($('btnAccSave')) $('btnAccSave').style.display = 'none';
+  if($('btnAccCancel')) $('btnAccCancel').style.display = 'none';
+}
+
   window.openAccModalByAccount = openAccModalByAccount;
 
   function closeAccModal(){
@@ -1809,7 +1827,33 @@ $('actSearch').value = '';
     }
   }
 
-  async function push(){
+  // 兼容：优先使用 SyncClientV22 生成“完整快照”（含数组数据），避免 localStorage 里只有 counts 导致推送为 0
+async function dumpLocalSnapshotSafe(){
+  try{
+    if(window.SyncClientV22 && typeof window.SyncClientV22.runSnapshot === 'function'){
+      const s = await window.SyncClientV22.runSnapshot();
+      if(s && s.data && (Array.isArray(s.data.accounts) || Array.isArray(s.data.activities) || Array.isArray(s.data.entries))){
+        return { data: s.data, hash: s.hash || null, meta: { source: 'SyncClientV22' } };
+      }
+    }
+  }catch(e){}
+  // fallback：沿用旧实现（如果存在）
+  if(typeof window.dumpLocalSnapshot === 'function'){
+    return await window.dumpLocalSnapshot();
+  }
+  // 最后兜底：尝试从 localStorage 读取（可能只有 counts）
+  try{
+    const raw = localStorage.getItem('OPS_LOCAL_SNAPSHOT_V1');
+    const j = raw ? JSON.parse(raw) : null;
+    if(j && j.data) return j;
+    if(j && (j.accounts||j.activities||j.entries)){
+      return { data: { accounts: j.accounts||[], activities: j.activities||[], entries: j.entries||[] }, hash: j.hash||null, meta:{ source:'localStorage_fallback' } };
+    }
+  }catch(e){}
+  return { data: { accounts: [], activities: [], entries: [] }, hash: null, meta:{ source:'empty' } };
+}
+
+async function push(){
     try{
       if(!confirm('将用本地 IndexedDB 推送覆盖云端表数据。继续？')) return;
       setStatus('推送中…');
