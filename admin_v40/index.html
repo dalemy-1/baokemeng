@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>账号与活动管理系统 v40（本地安全版）</title>
+  <link rel="stylesheet" href="./ui.css"/>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand">
+        <h1>账号与活动管理系统 v40（本地安全版）</h1>
+        <div class="sub">IndexedDB 本地库：act_acc_v40 ｜核心能力：账号登记 / 批量筛选与标记 / 活动管理 / 报名与中奖&付款解析 / 导入导出与快照</div>
+      </div>
+      <div class="nav">
+        <button class="btn" id="navAccounts">账号库</button>
+        <button class="btn" id="navActivities">活动管理</button>
+        <button class="btn" id="navSafety">数据安全</button>
+        <button class="btn primary" id="btnExportAll">导出JSON（全量备份）</button>
+        <button class="btn" id="btnImport">导入JSON</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="hd">
+          <h2>概览</h2>
+          <span class="badge" id="dbBadge"><span class="dot"></span><span>初始化中…</span></span>
+        </div>
+        <div class="bd">
+          <div class="kpis">
+            <div class="kpi">
+              <div class="k">账号数量</div>
+              <div class="v" id="kpiAccounts">—</div>
+            </div>
+            <div class="kpi">
+              <div class="k">活动数量</div>
+              <div class="v" id="kpiActivities">—</div>
+            </div>
+          </div>
+          <div class="hr"></div>
+          <div class="row" style="justify-content:space-between">
+            <div class="field" style="flex:1">
+              <label>当前活动（用于“报名/中奖/已付款”的批量操作）</label>
+              <select id="currentActivitySelect"></select>
+            </div>
+          </div>
+          <div class="hr"></div>
+          <div class="notice">
+            <div><b>强烈建议：</b>每次批量操作后点一次“导出JSON（全量备份）”。</div>
+            <div>本系统是“本地库”，浏览器缓存被清理会丢失，所以必须经常导出备份。你也可以用“快照”做回滚。</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" id="panelAccounts">
+        <div class="hd">
+          <h2>账号库：筛选 / 批量标记 / 解析勾选</h2>
+          <div class="row">
+            <button class="btn small" id="btnAddAccount">新增账号</button>
+            <button class="btn small" id="btnReload">重新加载</button>
+          </div>
+        </div>
+        <div class="bd">
+          <div class="split">
+            <div class="field">
+              <label>搜索（账户/标签/电话/备注）</label>
+              <input id="q" type="text" placeholder="例如：001@dalemy.top 或 爱伪装 或 7094…"/>
+            </div>
+            <div class="field">
+              <label>标签包含</label>
+              <input id="qTag" type="text" placeholder="多个用空格分隔，例如：A类 紧急"/>
+            </div>
+
+            <div class="field">
+              <label>活动报名</label>
+              <select id="fEnrolled">
+                <option value="all">全部</option>
+                <option value="yes">已报名（当前活动）</option>
+                <option value="no">未报名（当前活动）</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>中奖</label>
+              <select id="fWinner">
+                <option value="all">全部</option>
+                <option value="yes">已中签（当前活动）</option>
+                <option value="no">未中签（当前活动）</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label>已付款</label>
+              <select id="fPaid">
+                <option value="all">全部</option>
+                <option value="yes">已付款（当前活动）</option>
+                <option value="no">未付款（当前活动）</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>状态（账号字段）</label>
+              <select id="fStatus">
+                <option value="all">全部</option>
+                <option value="正常">正常</option>
+                <option value="异常">异常</option>
+                <option value="已停用">已停用</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top:10px">
+            <button class="btn" id="btnApplyFilters">应用筛选</button>
+            <button class="btn" id="btnClearFilters">清空筛选</button>
+            <span class="badge"><span class="dot good"></span><span id="filteredCount">筛选后：0</span></span>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="split">
+            <div class="field">
+              <label>解析勾选（粘贴账号/邮箱/号码）</label>
+              <textarea id="parseBox" placeholder="每行一个，或用空格/逗号/分号分隔。示例：
+001@dalemy.top
+002@dalemy.top
+7094315222"></textarea>
+              <div class="row">
+                <button class="btn" id="btnParseSelect">解析并勾选</button>
+                <button class="btn" id="btnParseClear">清空输入</button>
+              </div>
+              <div class="help">解析规则：自动提取邮箱和纯数字电话（>=6位）。匹配到账号库后会自动勾选。</div>
+            </div>
+
+            <div class="field">
+              <label>批量操作（作用于：已勾选的账号）</label>
+              <div class="row">
+                <button class="btn" id="btnBatchEnroll">勾选报名（当前活动）</button>
+                <button class="btn" id="btnBatchWinner">勾选中签（当前活动）</button>
+                <button class="btn" id="btnBatchPaid">勾选已付款（当前活动）</button>
+              </div>
+              <div class="row" style="margin-top:8px">
+                <button class="btn" id="btnBatchUnEnroll">取消报名</button>
+                <button class="btn" id="btnBatchUnWinner">取消中签</button>
+                <button class="btn" id="btnBatchUnPaid">取消已付款</button>
+              </div>
+              <div class="hr"></div>
+              <div class="row">
+                <button class="btn" id="btnExportFilteredCsv">导出CSV（筛选后）</button>
+                <button class="btn" id="btnExportSelectedCsv">导出CSV（已勾选）</button>
+              </div>
+              <div class="help">导出字段包含你提供的全部账号信息表头（活动报名/标签/账户/密码/辅助邮箱…备注4）。</div>
+            </div>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:36px"><input type="checkbox" id="ckAll"/></th>
+                  <th>账户</th>
+                  <th>标签</th>
+                  <th>活动报名</th>
+                  <th>中奖</th>
+                  <th>已付款</th>
+                  <th>状态</th>
+                  <th>更新时间</th>
+                </tr>
+              </thead>
+              <tbody id="tbAccounts"></tbody>
+            </table>
+          </div>
+
+          <div class="row" style="justify-content:space-between; margin-top:10px">
+            <span class="help" id="selHint">已勾选：0</span>
+            <button class="btn" id="btnSaveSnapshot">保存快照（回滚点）</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" id="panelActivities" style="display:none">
+        <div class="hd">
+          <h2>活动管理：新增 / 删除 / 进入活动</h2>
+          <div class="row">
+            <button class="btn small" id="btnAddActivity">新增活动</button>
+          </div>
+        </div>
+        <div class="bd">
+          <div class="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>活动名</th>
+                  <th class="right">报名数</th>
+                  <th class="right">中奖数</th>
+                  <th class="right">已付款数</th>
+                  <th>创建时间</th>
+                  <th style="width:240px">操作</th>
+                </tr>
+              </thead>
+              <tbody id="tbActivities"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" id="panelSafety" style="display:none">
+        <div class="hd">
+          <h2>数据安全：备份 / 快照 / 回滚</h2>
+          <div class="row">
+            <button class="btn" id="btnExportAll2">导出JSON（全量备份）</button>
+            <button class="btn" id="btnImport2">导入JSON</button>
+          </div>
+        </div>
+        <div class="bd">
+          <div class="notice">
+            <div><b>数据不会自动同步到 GitHub/Vercel。</b> GitHub Pages 只是“静态页面托管”，你的数据存在浏览器的 IndexedDB。</div>
+            <div>因此：请养成“导出JSON（全量备份）→ 存硬盘/网盘”的习惯。需要多人/多设备同步时，我们下一步会把“云端同步”接回 Supabase。</div>
+          </div>
+          <div class="hr"></div>
+          <div class="row">
+            <button class="btn" id="btnMakeSnap">保存快照（回滚点）</button>
+            <button class="btn danger" id="btnClearAll">清空本地数据（慎用）</button>
+          </div>
+          <div class="hr"></div>
+          <div class="field">
+            <label>快照列表（最近30条）</label>
+            <div class="tableWrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>时间戳</th>
+                    <th>备注</th>
+                    <th>账号数</th>
+                    <th>活动数</th>
+                    <th style="width:220px">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="tbSnaps"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- grid -->
+  </div><!-- wrap -->
+
+  <!-- Account Modal -->
+  <div class="modalOverlay" id="modalOverlay">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="hd">
+        <div class="title">
+          <h3 id="mTitle">账号详情</h3>
+          <div class="sub" id="mSub">—</div>
+        </div>
+        <button class="btn small" id="mClose">关闭</button>
+      </div>
+      <div class="bd" id="mBody"></div>
+      <div class="ft">
+        <button class="btn" id="mEdit">编辑</button>
+        <button class="btn primary" id="mSave">保存</button>
+        <button class="btn" id="mCancel">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <input type="file" id="fileInput" accept="application/json" style="display:none"/>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
