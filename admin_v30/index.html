@@ -37,7 +37,7 @@
     .pill.bad{ border-color:#fecaca; background:#fef2f2; color:#991b1b; }
 
     /* modal */
-    .backdrop{ position:fixed; inset:0; background:rgba(15,23,42,.45); display:none; align-items:center; justify-content:center; padding:16px; }
+    .backdrop{ position:fixed; inset:0; background:rgba(15,23,42,.45); display:none; align-items:center; justify-content:center; padding:16px; ; z-index:9999\}
     .modal{ width:min(780px, 100%); background:#fff; border-radius:16px; border:1px solid var(--line); box-shadow:var(--shadow); overflow:hidden; }
     .mhead{ padding:14px 16px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); }
     .mbody{ padding:16px; }
@@ -65,12 +65,23 @@
     .parsebox{ margin-top:12px; padding:12px; border:1px solid var(--line); border-radius:14px; background:#fbfcff; }
     .parseactions{ display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
 
-  </style>
+  
+    /* v31.4 compact modal */
+    .backdrop{ align-items:flex-start; padding:12px; }
+    .modal{ width:min(640px, 100%); max-height:calc(100vh - 24px); }
+    .mbody{ padding:12px; max-height:calc(100vh - 170px); overflow:auto; }
+    .mhead{ padding:10px 12px; }
+    .mfoot{ padding:10px 12px; }
+    .grid{ gap:10px; }
+    .field input, .field textarea, .field select{ padding:9px 10px; }
+
+      body.modalOpen{ overflow:hidden; }
+</style>
 </head>
 <body>
   <div class="wrap">
     <div class="top">
-      <div class="title">admin_v31.3 账号库（扩展字段/报名/批量标记/解析勾选） <span class="badge">账号：可点 → 可编辑 → 可保存 → 刷新仍在</span></div>
+      <div class="title">admin_v31.4 账号库（扩展字段/报名/批量标记/解析勾选） <span class="badge">账号：可点 → 可编辑 → 可保存 → 刷新仍在</span></div>
       <div class="muted">IndexedDB 读取：<b>act_acc_v199</b> / store: <b>accounts</b></div>
     </div>
 

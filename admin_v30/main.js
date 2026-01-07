@@ -103,6 +103,25 @@ function renderTable(){
   $('listInfo').textContent = `(显示 ${rows.length} / ${accounts.length})`;
 }
 
+
+function updateCounts(){
+  // Accounts KPI
+  const elAcc = document.getElementById('kpiAccounts');
+  if(elAcc) elAcc.textContent = String(accounts.length || 0);
+
+  // Activities KPI (this minimal build doesn't load activities yet)
+  const elAct = document.getElementById('kpiActivities');
+  if(elAct) elAct.textContent = '0';
+
+  // Status badge
+  const st = document.getElementById('kpiStatus');
+  if(st){
+    st.textContent = '就绪';
+    st.className = 'pill ok';
+  }
+}
+
+
 function renderForm(acc, mode='view'){
     const fields = [
     // 核心
