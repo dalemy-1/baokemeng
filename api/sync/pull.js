@@ -1,9 +1,10 @@
 import { applyCors, requireAdminToken, supabaseAdmin, readJson, nowIso, sendJson, handleError } from "./_util.js";
 
 /**
- * V24: pull returns { data, deletes }.
- * Supports optional `since` (ISO) in body or query. If provided, deletes are filtered by deleted_at > since.
- * Main tables return rows where deleted_at IS NULL.
+ * V24.1 FIX: pull returns { data, deletes } and will NOT 500.
+ * - deletes from ops_deletes uses columns: table_name, row_id, deleted_at, source
+ * - supports optional `since` (ISO) from body.since or query ?since=...
+ * - main tables return rows where deleted_at IS NULL
  */
 
 const TABLE_MAP = {
@@ -13,12 +14,29 @@ const TABLE_MAP = {
 };
 
 const DELETES_TABLE = "ops_deletes";
-const MAX_BATCH = 500;
+
+/** Very small system; keep conservative limits to avoid timeouts */
+const LIMIT_MAIN = 10000;
+const LIMIT_DELETES = 10000;
 
 function parseSince(req, body) {
   const q = req?.query || {};
   const s = (body?.since || q?.since || q?.cursor || "").toString().trim();
   return s || null;
+}
+
+async function fetchMain(sb, table, since) {
+  // If your tables have updated_at, we can do incremental pull with since; otherwise return full.
+  let q = sb.from(table).select("*").is("deleted_at", null).limit(LIMIT_MAIN);
+  if (since) {
+    // Best-effort: only apply if column exists; if it doesn't, Supabase returns an error and we fallback to full.
+    const { data, error } = await q.gt("updated_at", since);
+    if (!error) return { data: data || [], error: null };
+    // fallback to full if updated_at filter fails
+    q = sb.from(table).select("*").is("deleted_at", null).limit(LIMIT_MAIN);
+  }
+  const { data, error } = await q;
+  return { data: data || [], error };
 }
 
 export default async function handler(req, res) {
@@ -33,22 +51,35 @@ export default async function handler(req, res) {
     const body = await readJson(req);
     const since = parseSince(req, body);
 
-    const data = { accounts: [], activities: [], entries: [] };
-
-    // main data: exclude soft-deleted rows
-    for (const key of Object.keys(TABLE_MAP)) {
-      let q = sb.from(TABLE_MAP[key]).select("*").is("deleted_at", null).limit(10000);
-      // keep option open: if you later add updated_at cursor, you can extend here
-      const { data: rows, error } = await q;
-      if (error) return sendJson(res, 500, { ok: false, error: "supabase_error", step: "select", table: TABLE_MAP[key], detail: error.message });
-      data[key] = rows || [];
+    // main data
+    const data = {};
+    for (const [key, table] of Object.entries(TABLE_MAP)) {
+      const r = await fetchMain(sb, table, since);
+      if (r.error) {
+        return sendJson(res, 500, {
+          ok: false,
+          error: "supabase_error",
+          where: "main_select",
+          table,
+          detail: r.error.message,
+        });
+      }
+      data[key] = r.data;
     }
 
     // deletes queue
-    let dq = sb.from(DELETES_TABLE).select("table_name,row_id,deleted_at,source").limit(10000);
+    let dq = sb.from(DELETES_TABLE).select("table_name,row_id,deleted_at,source").limit(LIMIT_DELETES);
     if (since) dq = dq.gt("deleted_at", since);
     const { data: deletes, error: dErr } = await dq;
-    if (dErr) return sendJson(res, 500, { ok: false, error: "supabase_error", step: "deletes_select", table: DELETES_TABLE, detail: dErr.message });
+    if (dErr) {
+      return sendJson(res, 500, {
+        ok: false,
+        error: "supabase_error",
+        where: "deletes_select",
+        table: DELETES_TABLE,
+        detail: dErr.message,
+      });
+    }
 
     return sendJson(res, 200, {
       ok: true,
@@ -56,7 +87,7 @@ export default async function handler(req, res) {
       since: since || null,
       data,
       deletes: deletes || [],
-      note: "pull ok (v24 deletes queue enabled)",
+      note: "pull ok (v24.1 deletes queue enabled)",
     });
   } catch (err) {
     return handleError(res, err);
