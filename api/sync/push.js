@@ -1,115 +1,164 @@
-import { applyCors, requireAdminToken, supabaseAdmin, readJson, nowIso, sendJson, handleError } from "./_util.js";
+// api/sync/push.js
+// V25 (稳态增强)：Push 端“按云端真实列过滤”——本地多字段不会再导致 500
+// 适配：Vercel Serverless Functions 目录结构（/api/sync/push.js）
+// 依赖：SUPABASE_SERVICE_ROLE_KEY + NEXT_PUBLIC_SUPABASE_URL + ADMIN_SYNC_TOKEN
+import { createClient } from "@supabase/supabase-js";
 
-/**
- * V24.3 PUSH FIX:
- * - supabaseAdmin() is async in this repo, so MUST await it (fixes silent failures)
- * - Accepts { upserts, deletes } in body (backward compatible with {data} / {payload})
- * - Writes deletes into ops_deletes with columns: table_name,row_id,deleted_at,source
- * - Keeps legacy soft-delete update to main tables (best-effort) but deletes queue is the source of truth.
- */
-
-const TABLE_MAP = {
-  accounts: "ops_accounts",
-  activities: "ops_activities",
-  entries: "ops_activity_entries",
-};
-
-const DELETES_TABLE = "ops_deletes";
-
-function normalizeBody(body) {
-  // Backward compatibility:
-  // - some clients send { data: {...} }
-  // - some send { upserts: {...} }
-  const upserts = body?.upserts || body?.data || body?.payload?.data || body?.payload || {};
-  const deletes = body?.deletes || body?.payload?.deletes || [];
-  return { upserts, deletes };
+function supabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const service = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+  if (!url || !service) throw new Error("Supabase env missing");
+  return createClient(url, service, { auth: { persistSession: false } });
 }
 
-function pickArray(x) {
-  return Array.isArray(x) ? x : [];
+function pick(obj, allowedSet) {
+  if (!obj || typeof obj !== "object") return null;
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (allowedSet.has(k)) out[k] = v;
+  }
+  return out;
+}
+
+async function getAllowedColumns(sb, table) {
+  // information_schema 查询列名（只读）——避免“schema cache missing column”导致 500
+  const { data, error } = await sb
+    .from("information_schema.columns")
+    .select("column_name")
+    .eq("table_schema", "public")
+    .eq("table_name", table);
+
+  if (error) throw new Error(`read information_schema.columns failed: ${error.message || String(error)}`);
+
+  const set = new Set((data || []).map((r) => r.column_name));
+  // 保险：常见主键列必须允许
+  set.add("id");
+  return set;
+}
+
+function normalizeDeletes(deletes) {
+  const arr = Array.isArray(deletes) ? deletes : [];
+  return arr
+    .map((d) => ({
+      table_name: String(d?.table_name || "").slice(0, 64),
+      row_id: String(d?.row_id || "").slice(0, 128),
+      deleted_at: d?.deleted_at ? String(d.deleted_at) : null,
+      source: d?.source ? String(d.source).slice(0, 128) : null,
+    }))
+    .filter((d) => d.table_name && d.row_id)
+    .slice(0, 2000);
 }
 
 export default async function handler(req, res) {
   try {
-    if (applyCors(req, res)) return;
-    if (req.method !== "POST") return sendJson(res, 405, { ok: false, error: "method_not_allowed" });
-
-    const auth = requireAdminToken(req);
-    if (!auth.ok) return sendJson(res, 401, { ok: false, error: auth.error });
-
-    const body = await readJson(req);
-    const { upserts, deletes } = normalizeBody(body);
-
-    // IMPORTANT: async in this project
-    const sb = await supabaseAdmin();
-
-    // 1) Upserts (best-effort)
-    const upsertReport = {};
-    for (const [key, table] of Object.entries(TABLE_MAP)) {
-      const rows = pickArray(upserts?.[key]);
-      if (!rows.length) {
-        upsertReport[key] = 0;
-        continue;
-      }
-      const { error } = await sb.from(table).upsert(rows);
-      if (error) {
-        return sendJson(res, 500, {
-          ok: false,
-          error: "supabase_error",
-          where: "main_upsert",
-          table,
-          detail: error.message,
-        });
-      }
-      upsertReport[key] = rows.length;
+    if (req.method !== "POST") {
+      return res.status(405).json({ ok: false, error: "method_not_allowed" });
     }
 
-    // 2) Deletes queue (source of truth for deletion propagation)
-    const delRowsRaw = pickArray(deletes);
-    const delRows = delRowsRaw
-      .map(d => ({
-        table_name: d?.table_name || d?.table || d?.tableKey || d?.table_key || d?.tableName,
-        row_id: (d?.row_id || d?.id || d?.rowId || "").toString(),
-        deleted_at: d?.deleted_at || d?.deletedAt || nowIso(),
-        source: d?.source || "admin",
-      }))
-      .filter(d => d.table_name && d.row_id);
+    // --- Auth (Admin token) ---
+    const expected = process.env.ADMIN_SYNC_TOKEN || "";
+    const token =
+      (req.headers["x-admin-token"] || req.headers["x-admin-sync-token"] || "").toString() ||
+      (req.body?.admin_token || "").toString();
 
-    let deletesQueued = 0;
-    if (delRows.length) {
-      const { error } = await sb
-        .from(DELETES_TABLE)
-        .upsert(delRows, { onConflict: "table_name,row_id" });
-      if (error) {
-        return sendJson(res, 500, {
-          ok: false,
-          error: "supabase_error",
-          where: "deletes_upsert",
-          table: DELETES_TABLE,
-          detail: error.message,
-        });
-      }
-      deletesQueued = delRows.length;
-
-      // 3) Legacy soft delete on main tables (best-effort; ignore errors)
-      // If your main tables don't have deleted_at, this may fail; we intentionally ignore.
-      for (const d of delRows) {
-        const mainTable = TABLE_MAP[d.table_name];
-        if (!mainTable) continue;
-        try {
-          await sb.from(mainTable).update({ deleted_at: d.deleted_at }).eq("id", d.row_id);
-        } catch (_) {}
-      }
+    if (!expected || token !== expected) {
+      return res.status(401).json({ ok: false, error: "unauthorized" });
     }
 
-    return sendJson(res, 200, {
+    const sb = supabaseAdmin();
+
+    // --- Parse payload ---
+    // 兼容多种客户端 payload 形态：{ db, data: { accounts, activities, entries }, deletes, source }
+    const payload = req.body || {};
+    const dbName = String(payload.db || payload.db_name || "").slice(0, 128);
+    const source = String(payload.source || payload.device_id || "").slice(0, 128);
+
+    const dataObj = payload.data || payload.snapshot || payload.state || {};
+    const accounts = Array.isArray(dataObj.accounts) ? dataObj.accounts : (dataObj.accounts?.rows || []);
+    const activities = Array.isArray(dataObj.activities) ? dataObj.activities : (dataObj.activities?.rows || []);
+    const entries = Array.isArray(dataObj.entries) ? dataObj.entries : (dataObj.entries?.rows || []);
+
+    // --- Table mapping ---
+    const TABLES = {
+      accounts: "ops_accounts",
+      activities: "ops_activities",
+      entries: "ops_entries",
+    };
+
+    // --- Column allowlists (云端真实列) ---
+    const allowAccounts = await getAllowedColumns(sb, TABLES.accounts);
+    const allowActivities = await getAllowedColumns(sb, TABLES.activities);
+    const allowEntries = await getAllowedColumns(sb, TABLES.entries);
+
+    // --- Filter rows ---
+    const filteredAccounts = (accounts || [])
+      .map((r) => pick(r, allowAccounts))
+      .filter((r) => r && r.id);
+    const filteredActivities = (activities || [])
+      .map((r) => pick(r, allowActivities))
+      .filter((r) => r && r.id);
+    const filteredEntries = (entries || [])
+      .map((r) => pick(r, allowEntries))
+      .filter((r) => r && r.id);
+
+    // --- Upsert helpers ---
+    async function safeUpsert(table, rows, tag) {
+      if (!rows || rows.length === 0) return { upserted: 0 };
+      const BATCH = 500;
+      let upserted = 0;
+      for (let i = 0; i < rows.length; i += BATCH) {
+        const chunk = rows.slice(i, i + BATCH);
+        const { error } = await sb.from(table).upsert(chunk, { onConflict: "id" });
+        if (error) throw new Error(`${tag} upsert failed: ${error.message || String(error)}`);
+        upserted += chunk.length;
+      }
+      return { upserted };
+    }
+
+    // --- Deletes queue (tombstone) ---
+    const deletes = normalizeDeletes(payload.deletes || dataObj.deletes);
+    let deletes_written = 0;
+    if (deletes.length > 0) {
+      const nowIso = new Date().toISOString();
+      const toWrite = deletes.map((d) => ({
+        table_name: d.table_name,
+        row_id: d.row_id,
+        deleted_at: d.deleted_at || nowIso,
+        source: d.source || source || "client",
+      }));
+
+      const { error } = await sb.from("ops_deletes").upsert(toWrite, {
+        onConflict: "table_name,row_id",
+      });
+      if (error) throw new Error(`deletes upsert failed: ${error.message || String(error)}`);
+      deletes_written = toWrite.length;
+    }
+
+    // --- Main upserts ---
+    const r1 = await safeUpsert(TABLES.accounts, filteredAccounts, "accounts");
+    const r2 = await safeUpsert(TABLES.activities, filteredActivities, "activities");
+    const r3 = await safeUpsert(TABLES.entries, filteredEntries, "entries");
+
+    return res.json({
       ok: true,
-      server_ts: nowIso(),
-      upserts: upsertReport,
-      deletes_queued: deletesQueued,
-      note: "push ok (v24.3: await supabaseAdmin + ops_deletes queue)",
+      db: dbName || null,
+      source: source || null,
+      counts: {
+        accounts_in: accounts?.length || 0,
+        activities_in: activities?.length || 0,
+        entries_in: entries?.length || 0,
+        accounts_upserted: r1.upserted,
+        activities_upserted: r2.upserted,
+        entries_upserted: r3.upserted,
+        deletes_written,
+      },
+      note: "push ok (filtered by server schema)",
     });
-  } catch (err) {
-    return handleError(res, err);
+  } catch (e) {
+    return res.status(500).json({
+      ok: false,
+      error: "supabase_error",
+      message: e?.message || String(e),
+    });
   }
 }
