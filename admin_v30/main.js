@@ -1,3 +1,7 @@
+/* admin_v31.2 hotfix: ensure filtered global */
+var filtered = window.filtered || [];
+window.filtered = filtered;
+
 import { openDB, getAll, put, getByKey } from './state.js';
 
 const DB = { name: 'act_acc_v199', version: 1, stores: { accounts: { keyPath:'account' }, activities: { keyPath:'id' } } };
@@ -6,7 +10,6 @@ const $ = (id)=>document.getElementById(id);
 
 let db;
 let accounts = [];
-let filtered = [];
 let activities = [];
 let currentOriginal = null;
 let currentDraft = null;
@@ -384,6 +387,7 @@ function applyFilters(){
     return true;
   });
 
+  window.filtered = filtered;
   renderTable();
   updateCounts();
   clearSelection();
