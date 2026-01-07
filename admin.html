@@ -321,17 +321,6 @@
   </div>
 
 <script>
-
-window.setStatus = function(msg){
-  msg = String(msg||'');
-  try{
-    var el = document.getElementById('syncStatus');
-    if(el) el.textContent = msg;
-  }catch(e){}
-  try{ console.log('[SYNC]', msg); }catch(e){}
-};
-
-
   // --- Safety shims (avoid blank page if any function missing) ---
   if (typeof window.getWinCountByAccount !== 'function') {
     window.getWinCountByAccount = function(acc){
@@ -1675,8 +1664,7 @@ $('actSearch').value = '';
   function getSyncCfg(){
     var base = normalizeBase(q('syncBaseUrl').value);
     var token = sanitizeToken(q('syncAdminToken').value);
-    // ✅ 允许 base 为空：同域请求 /api/sync/*
-    if(!base) base = '';
+    if(!base) throw new Error('请填写同步 API Base URL（示例：https://xxx.vercel.app）');
     if(!token) throw new Error('请填写管理员同步口令（x-admin-token）');
     return { baseUrl: base, token: token };
   }
@@ -1720,7 +1708,7 @@ $('actSearch').value = '';
   async function ping(){
     try{
       setStatus('测试连接中…');
-      var j = await apiFetch('/api/sync/ping', { method:'POST' });
+      var j = await apiFetch('/api/sync/ping', { method:'GET' });
       setStatus('连接成功：' + (j.ts||j.server_time||'ok'));
     }catch(e){
       setStatus('连接失败：' + (e.message||String(e)));
@@ -1732,12 +1720,10 @@ $('actSearch').value = '';
     try{
       if(!confirm('将用云端数据覆盖本地 IndexedDB（本地更改会被覆盖）。继续？')) return;
       setStatus('拉取中…');
-    // (v21) 拉取卡死保护：后续会输出完成/失败日志
-
       var j = await apiFetch('/api/sync/pull', { method:'POST', body:'{}', headers:{'Content-Type':'application/json'} });
 
       await new Promise(function(resolve, reject){
-        window.applyCloudToLocal(j, function(err, stats){
+        applyCloudToLocal(j, function(err, stats){
           if(err) return reject(err);
           resolve(stats);
         });
@@ -1800,54 +1786,173 @@ $('actSearch').value = '';
 })();
 </script>
 <script>
+/**
+ * SyncClientV21 (isolated)
+ * - Same-origin by default (baseUrl can be empty)
+ * - Token persisted in localStorage
+ * - Pull stores cloud snapshot to localStorage (no IndexedDB write here)
+ */
 (function(){
+  const LS = {
+    TOKEN: "OPS_SYNC_ADMIN_TOKEN_V1",
+    BASE:  "OPS_SYNC_BASEURL_V1",
+    LAST_TS: "OPS_SYNC_LAST_SERVER_TS_V1",
+    LAST_PULL: "OPS_LAST_CLOUD_PULL_V1",
+    LOCAL_SNAPSHOT: "OPS_LOCAL_SNAPSHOT_V1"
+  };
+
   function $(id){ return document.getElementById(id); }
-  function onReady(fn){
-    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', fn);
-    else fn();
-  }
-  onReady(function(){
-    // Persist keys
-    var K_TOKEN = 'OPS_SYNC_ADMIN_TOKEN_V1';
-    var K_BASE  = 'OPS_SYNC_BASEURL_V1';
 
-    var tokenEl = $('syncAdminToken');
-    var baseEl  = $('syncBaseUrl');
-
-    // Load saved values
+  // Global status helper (do not depend on older functions)
+  window.setStatus = function(msg){
     try{
-      var savedToken = localStorage.getItem(K_TOKEN) || '';
+      const el = $("syncStatus");
+      if(el) el.textContent = "状态：" + String(msg||"");
+    }catch(e){}
+    try{ console.log("[SYNC]", msg); }catch(e){}
+  };
+
+  function normalizeBase(raw){
+    raw = String(raw||"").trim();
+    if(!raw) return "";
+    // allow user to paste full endpoint; normalize to origin (no trailing slash)
+    // Examples:
+    //  - https://xxx.vercel.app -> https://xxx.vercel.app
+    //  - https://xxx.vercel.app/api/sync/pull -> https://xxx.vercel.app
+    try{
+      const u = new URL(raw);
+      return (u.origin || "").replace(/\/+$/,"");
+    }catch(e){
+      return raw.replace(/\/+$/,"");
+    }
+  }
+
+  function getCfg(){
+    const base = normalizeBase(($("syncBaseUrl")?.value || localStorage.getItem(LS.BASE) || ""));
+    const token = String(($("syncAdminToken")?.value || localStorage.getItem(LS.TOKEN) || "")).trim();
+    if(!token) throw new Error("unauthorized");
+    return { baseUrl: base, token };
+  }
+
+  async function apiFetch(path, bodyObj){
+    const cfg = getCfg();
+    const url = (cfg.baseUrl ? (cfg.baseUrl + path) : path);
+    const r = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type":"application/json",
+        "x-admin-token": cfg.token
+      },
+      body: JSON.stringify(bodyObj || {})
+    });
+    const txt = await r.text();
+    let json;
+    try{ json = JSON.parse(txt); }catch(e){ json = { ok:false, error:"bad_json", raw: txt }; }
+    if(!r.ok || json.ok === false){
+      const err = (json && json.error) ? json.error : ("http_" + r.status);
+      const e = new Error(err);
+      e.http_status = r.status;
+      e.payload = json;
+      throw e;
+    }
+    return json;
+  }
+
+  window.SyncClientV21 = {
+    async ping(){
+      setStatus("测试连接中…");
+      const res = await apiFetch("/api/sync/ping", { hello:"world", t: Date.now() });
+      setStatus("连接成功：" + (res.ts || res.server_ts || ""));
+      return res;
+    },
+    async pull(){
+      setStatus("拉取中…");
+      const since = localStorage.getItem(LS.LAST_TS) || null;
+      const res = await apiFetch("/api/sync/pull", { since, limit: 2000 });
+      const data = res.data || res;
+      try{ localStorage.setItem(LS.LAST_PULL, JSON.stringify(data||{})); }catch(e){}
+      const counts = {
+        accounts: (data.accounts||[]).length,
+        activities: (data.activities||[]).length,
+        entries: (data.entries||[]).length
+      };
+      const ts = res.server_ts || res.ts || data.server_ts || null;
+      if(ts) try{ localStorage.setItem(LS.LAST_TS, ts); }catch(e){}
+      setStatus("拉取完成：accounts=" + counts.accounts + " activities=" + counts.activities + " entries=" + counts.entries);
+      return { res, counts, ts };
+    },
+    async push(){
+      setStatus("推送中…");
+      let snap = { accounts:[], activities:[], entries:[] };
+      try{
+        const s = localStorage.getItem(LS.LOCAL_SNAPSHOT);
+        if(s) snap = JSON.parse(s) || snap;
+      }catch(e){}
+      // v21 protocol: upserts + deletes (empty by default)
+      const payload = {
+        upserts: {
+          accounts: Array.isArray(snap.accounts)? snap.accounts : [],
+          activities: Array.isArray(snap.activities)? snap.activities : [],
+          entries: Array.isArray(snap.entries)? snap.entries : [],
+        },
+        deletes: []
+      };
+      const res = await apiFetch("/api/sync/push", payload);
+      const applied = res.applied || {};
+      setStatus("推送完成：accounts=" + (applied.accounts||0) + " activities=" + (applied.activities||0) + " entries=" + (applied.entries||0) + " deletes=" + (applied.deletes||0));
+      return res;
+    }
+  };
+
+  // Persist inputs + bind buttons
+  function bootstrap(){
+    const baseEl = $("syncBaseUrl");
+    const tokenEl = $("syncAdminToken");
+    const bPing = $("btnSyncPing");
+    const bPull = $("btnSyncPull");
+    const bPush = $("btnSyncPush");
+
+    // Load saved (allow empty base)
+    try{
+      const savedBase = localStorage.getItem(LS.BASE);
+      if(baseEl && savedBase !== null) baseEl.value = savedBase;
+    }catch(e){}
+    try{
+      const savedToken = localStorage.getItem(LS.TOKEN) || "";
       if(tokenEl && savedToken) tokenEl.value = savedToken;
     }catch(e){}
-    try{
-      var savedBase = localStorage.getItem(K_BASE);
-      if(baseEl && savedBase !== null) baseEl.value = savedBase; // allow empty
-    }catch(e){}
 
-    // Save on input (so refresh won't lose)
-    if(tokenEl){
-      tokenEl.addEventListener('input', function(){
-        try{ localStorage.setItem(K_TOKEN, tokenEl.value || ''); }catch(e){}
-      });
-    }
+    // Save on input
     if(baseEl){
-      baseEl.addEventListener('input', function(){
-        try{ localStorage.setItem(K_BASE, baseEl.value || ''); }catch(e){}
-      });
+      baseEl.addEventListener("input", ()=>{ try{ localStorage.setItem(LS.BASE, baseEl.value || ""); }catch(e){} });
+      // if user clears, keep empty = same-origin
+      if(!baseEl.value) {
+        // default empty for same-origin; don't force user to fill
+        try{ localStorage.setItem(LS.BASE, ""); }catch(e){}
+      }
     }
-  });
-})();
-</script>
-<script>
-(function(){
-  // ✅ 覆盖为“快速落地版”：避免 IndexedDB 写入导致拉取卡死
-  async function window.applyCloudToLocal(cloud){
-    try{
-      localStorage.setItem('OPS_LAST_CLOUD_PULL_V1', JSON.stringify(cloud||{}));
-    }catch(e){}
-    return true;
+    if(tokenEl){
+      tokenEl.addEventListener("input", ()=>{ try{ localStorage.setItem(LS.TOKEN, tokenEl.value || ""); }catch(e){} });
+    }
+
+    async function wrap(fn){
+      try{
+        await fn();
+      }catch(e){
+        const msg = (e && e.message) ? e.message : String(e);
+        if(msg === "unauthorized") setStatus("连接失败：unauthorized");
+        else setStatus("失败：" + msg);
+        try{ console.error(e); }catch(_){}
+      }
+    }
+
+    if(bPing) bPing.onclick = ()=>wrap(()=>window.SyncClientV21.ping());
+    if(bPull) bPull.onclick = ()=>wrap(()=>window.SyncClientV21.pull());
+    if(bPush) bPush.onclick = ()=>wrap(()=>window.SyncClientV21.push());
   }
-  window.applyCloudToLocal = applyCloudToLocal;
+
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", bootstrap);
+  else bootstrap();
 })();
 </script>
 </body>
