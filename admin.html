@@ -652,7 +652,7 @@ function getAll(store, cb){
     for(var j=start;j<end;j++){
       var a2 = rows[j];
       html += '<tr>' +
-        '<td><a class="alink" href="javascript:void(0)" data-acc="'+escAttr(a2.account||'')+'">'+escHtml(a2.account||'')+'</a></td>' +
+        '<td><a class="alink" href="javascript:void(0)" onclick="return window.__openAccByAccount(this.getAttribute('data-acc'))" data-acc="'+escAttr(a2.account||'')+'">'+escHtml(a2.account||'')+'</a></td>' +
         '<td>'+ (a2.tags?escHtml(a2.tags):'<span class="muted">—</span>') +'</td>' +
         '<td>'+ (a2.status?escHtml(a2.status):'<span class="muted">—</span>') +'</td>' +
         '<td>'+ String(getWinCountByAccount(a2.account||'')) +'</td>' +
@@ -709,6 +709,9 @@ function getAll(store, cb){
   if($('btnAccSave')) $('btnAccSave').style.display = 'none';
   if($('btnAccCancel')) $('btnAccCancel').style.display = 'none';
 }
+// expose for inline onclick (robust)
+window.__openAccByAccount = function(acc){ try{ openAccModalByAccount(acc); }catch(e){ console.error(e); alert('打开账号详情失败：'+(e&&e.message||e)); } return false; };
+
 
   window.openAccModalByAccount = openAccModalByAccount;
 
@@ -1068,7 +1071,7 @@ $('actSearch').value = '';
       var paid = m.paid ? '<span class="badge"><span class="dot ok"></span>已付</span>' : '<span class="badge"><span class="dot danger"></span>未付</span>';
       html += '<tr data-acc="'+escAttr(acc)+'">'+
         '<td><input type="checkbox" class="actChk" data-acc="'+escAttr(acc)+'"/></td>'+
-        '<td><a class="alink" href="javascript:void(0)" data-acc="'+escAttr(acc)+'">'+escHtml(acc)+'</a></td>'+
+        '<td><a class="alink" href="javascript:void(0)" onclick="return window.__openAccByAccount(this.getAttribute('data-acc'))" data-acc="'+escAttr(acc)+'">'+escHtml(acc)+'</a></td>'+
         '<td>'+ (allAccounts[i].tags?escHtml(allAccounts[i].tags):'<span class="muted">—</span>') +'</td>'+
         '<td>'+ (allAccounts[i].status?escHtml(allAccounts[i].status):'<span class="muted">—</span>') +'</td>'+
         '<td>'+ applied +'</td>'+
