@@ -133,6 +133,37 @@
       db.close();
     }
     log("applied deletes to IndexedDB:", applied, "/", deletes.length);
+    // [V25-0 ACK] best-effort: tell cloud we applied deletes locally (for applied_count stats)
+if (applied > 0) {    
+try {
+  const adminToken =
+    (typeof window !== "undefined" && window.ADMIN_SYNC_TOKEN) ||
+    (typeof ADMIN_SYNC_TOKEN !== "undefined" ? ADMIN_SYNC_TOKEN : "") ||
+    (localStorage.getItem("ADMIN_SYNC_TOKEN") || "");
+
+  fetch("/api/sync/ack_deletes", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      deletes: (Array.isArray(deletes) ? deletes : []).map(d => ({
+        table_name: d.table_name,
+        row_id: d.row_id
+      })),
+      source: (localStorage.getItem("SYNC_DEVICE_ID") || ""),
+      admin_token: adminToken
+    })
+  })
+    .then(async (r) => {
+  const j = await r.json().catch(() => ({}));
+  return { status: r.status, j };
+})
+.then(({ status, j }) => console.log("[SYNC][ACK] status=", status, "ok=", j?.ok, "updated=", j?.updated))
+
+    .catch(e => console.warn("[SYNC][ACK] ignored error:", e));
+} catch (e) {
+  console.warn("[SYNC][ACK] ignored error:", e);
+}
+} // <-- 这行必须有  
     return { ok:true, applied, deletes: deletes.length };
   }
 
