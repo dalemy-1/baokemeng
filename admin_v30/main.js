@@ -56,7 +56,7 @@ function renderTable(){
   }).join('');
 }
 
-function formFields(acc){
+function renderForm(acc, mode='view'){
   const fields = [
     { k:'account', label:'账号（主键）', ro:true },
     { k:'pwd', label:'密码', ro:false },
@@ -67,13 +67,25 @@ function formFields(acc){
     { k:'status', label:'状态', ro:false, placeholder:'例如：正常 / 异常 / 已停用' },
     { k:'activity_name', label:'当前活动名（可选）', ro:false },
   ];
+
+  if(mode==='edit'){
+    return fields.map(f=>{
+      const v = acc?.[f.k] ?? '';
+      const dis = f.ro ? 'disabled' : '';
+      const ph = f.placeholder ? `placeholder="${esc(f.placeholder)}"` : '';
+      return `<div class="field">
+        <label>${esc(f.label)}</label>
+        <input class="input" data-k="${esc(f.k)}" value="${esc(v)}" ${dis} ${ph}/>
+      </div>`;
+    }).join('');
+  }
+
   return fields.map(f=>{
-    const v = acc?.[f.k] ?? '';
-    const dis = f.ro ? 'disabled' : '';
-    const ph = f.placeholder ? `placeholder="${esc(f.placeholder)}"` : '';
+    const v = acc?.[f.k];
+    const shown = (v===undefined || v===null || String(v).trim()==='') ? '<span class="roval roempty">—</span>' : `<span class="roval">${esc(v)}</span>`;
     return `<div class="field">
       <label>${esc(f.label)}</label>
-      <input class="input" data-k="${esc(f.k)}" value="${esc(v)}" ${dis} ${ph}/>
+      <div class="robox" data-k="${esc(f.k)}">${shown}</div>
     </div>`;
   }).join('');
 }
@@ -84,12 +96,9 @@ function setEditing(on){
   $('btnCancel').disabled = !on;
   $('btnEdit').disabled = on;
 
-  // enable/disable inputs except account
-  document.querySelectorAll('#form input').forEach(inp=>{
-    const k = inp.getAttribute('data-k');
-    if(k==='account') return;
-    inp.disabled = !on;
-  });
+  if(currentDraft){
+    $('form').innerHTML = renderForm(currentDraft, on ? 'edit' : 'view');
+  }
 
   $('saveHint').textContent = on
     ? '编辑模式：修改后点击【保存】写回 IndexedDB（accounts store）。'
@@ -102,7 +111,7 @@ function openModalByAccount(account){
   currentOriginal = acc;
   currentDraft = structuredClone(acc);
   $('mSub').textContent = `account = ${account}`;
-  $('form').innerHTML = formFields(currentDraft);
+  $('form').innerHTML = renderForm(currentDraft, 'view');
   $('backdrop').style.display = 'flex';
   setEditing(false);
 }
@@ -115,11 +124,12 @@ function closeModal(){
 
 function collectDraft(){
   const d = structuredClone(currentDraft || {});
-  document.querySelectorAll('#form input').forEach(inp=>{
-    const k = inp.getAttribute('data-k');
-    d[k] = inp.value;
-  });
-  // timestamps
+  if(editing){
+    document.querySelectorAll('#form input').forEach(inp=>{
+      const k = inp.getAttribute('data-k');
+      d[k] = inp.value;
+    });
+  }
   const now = new Date().toISOString();
   if(!d.created_at) d.created_at = currentOriginal?.created_at || now;
   d.updated_at = now;
@@ -137,6 +147,8 @@ async function save(){
     const idx = accounts.findIndex(a=>a.account===draft.account);
     if(idx>=0) accounts[idx] = fresh || draft;
     renderTable();
+    currentOriginal = fresh || draft;
+    currentDraft = structuredClone(currentOriginal);
     setEditing(false);
     alert('保存成功：已写回 IndexedDB，并刷新列表。');
   }catch(e){
@@ -270,12 +282,9 @@ $('btnEdit').addEventListener('click', ()=>{
 
 $('btnCancel').addEventListener('click', ()=>{
   if(!currentOriginal) return;
-  // reset form
   currentDraft = structuredClone(currentOriginal);
-  $('form').innerHTML = formFields(currentDraft);
   setEditing(false);
 });
-
 $('btnSave').addEventListener('click', save);
 
 // boot
