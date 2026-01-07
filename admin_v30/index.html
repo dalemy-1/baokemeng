@@ -72,14 +72,17 @@
             <div id="kpiStatus" class="pill">初始化中…</div>
           </div>
         </div>
-        <div class="note">本页只做“账号库最小闭环”。同步（Push/Pull/Deletes）暂不启用，避免干扰验收。</div>
+        <div class="note">本页只做“账号库最小闭环”。同步（Push/Pull/Deletes）暂不启用，避免干扰验收。<br/><b>提示：</b>IndexedDB 数据按“域名”隔离；你在 Vercel 域名录入的数据，不会自动出现在 GitHub Pages 域名。可用【导入JSON】把旧域名导出的账号导入到当前域名进行验证。</div>
       </div>
 
       <div class="card p16" style="flex:1 1 360px;">
         <div class="row" style="align-items:center;">
           <input id="q" class="input" placeholder="搜索账号 / 标签 / 状态…" />
           <button id="btnReload" class="btn">重新加载</button>
+          <button id="btnImportJson" class="btn">导入JSON（账号）</button>
+          <button id="btnAddTest" class="btn">新增测试账号</button>
           <button id="btnExportJson" class="btn">导出JSON（仅账号）</button>
+          <input id="fileJson" type="file" accept="application/json" style="display:none" />
         </div>
         <div class="note">导出用于“先验证本地可写入”，后续再接同步与云端。</div>
       </div>

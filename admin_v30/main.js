@@ -169,6 +169,50 @@ function download(filename, text){
   URL.revokeObjectURL(url);
 }
 
+
+async function importJsonText(text){
+  let data;
+  try{ data = JSON.parse(text); }catch{ throw new Error('json_parse_failed'); }
+  let list = [];
+  if(Array.isArray(data)) list = data;
+  else if(Array.isArray(data.accounts)) list = data.accounts;
+  else throw new Error('invalid_format_need_accounts_array');
+
+  // basic normalize
+  const now = new Date().toISOString();
+  const cleaned = [];
+  for(const raw of list){
+    const a = raw && typeof raw === 'object' ? raw : null;
+    if(!a) continue;
+    const account = String(a.account || '').trim();
+    if(!account) continue;
+    const obj = { ...a, account };
+    if(!obj.created_at) obj.created_at = now;
+    obj.updated_at = now;
+    cleaned.push(obj);
+  }
+  if(cleaned.length===0) throw new Error('no_valid_accounts');
+
+  // write
+  for(const a of cleaned){
+    await put(db, 'accounts', a);
+  }
+  return cleaned.length;
+}
+
+function makeTestAccount(){
+  const rand = Math.random().toString(16).slice(2,8);
+  const now = new Date().toISOString();
+  return {
+    account: `test_${rand}@example.com`,
+    pwd: '123456',
+    tags: 'test',
+    status: '正常',
+    created_at: now,
+    updated_at: now
+  };
+}
+
 // events
 document.addEventListener('click', (e)=>{
   const a = e.target?.closest?.('a[data-open]');
@@ -180,6 +224,37 @@ document.addEventListener('click', (e)=>{
 
 $('q').addEventListener('input', ()=>renderTable());
 $('btnReload').addEventListener('click', ()=>load().catch(err=>{ console.error(err); setStatus('加载失败','bad'); alert(String(err?.message||err)); }));
+
+$('btnImportJson').addEventListener('click', ()=> $('fileJson').click());
+$('fileJson').addEventListener('change', async (e)=>{
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if(!file) return;
+  try{
+    const text = await file.text();
+    const n = await importJsonText(text);
+    await load();
+    alert(`导入成功：写入 ${n} 条账号到 IndexedDB。`);
+  }catch(err){
+    console.error(err);
+    alert('导入失败：' + (err?.message || String(err)));
+  }
+});
+
+$('btnAddTest').addEventListener('click', async ()=>{
+  try{
+    if(!db) throw new Error('db_not_ready');
+    const a = makeTestAccount();
+    await put(db, 'accounts', a);
+    await load();
+    alert('已新增测试账号：' + a.account);
+  }catch(err){
+    console.error(err);
+    alert('新增失败：' + (err?.message || String(err)));
+  }
+});
+
+
 $('btnExportJson').addEventListener('click', ()=>{
   const payload = { exported_at: new Date().toISOString(), db: DB.name, accounts };
   download(`accounts_export_${Date.now()}.json`, JSON.stringify(payload, null, 2));
