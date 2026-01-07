@@ -447,6 +447,31 @@
       t.onabort = function(){ cb && cb(t.error || req.error || new Error('delete aborted')); };
     });
   }
+// 写入/更新一条记录（put）
+function putObj(store, value, cb){
+  tx(store, 'readwrite', function(err, os, t){
+    if(err){ cb && cb(err); return; }
+    var req;
+    try { req = os.put(value); }
+    catch(e){ cb && cb(e); return; }
+    req.onsuccess = function(){ /* no-op */ };
+    req.onerror   = function(){ /* handled by tx */ };
+    t.oncomplete  = function(){ cb && cb(null, value); };
+    t.onerror     = function(){ cb && cb(t.error || req.error || new Error('put failed')); };
+    t.onabort     = function(){ cb && cb(t.error || req.error || new Error('put aborted')); };
+  });
+}
+
+// 专用：保存账号（accounts 的 keyPath 是 account，所以必须保留 account 字段）
+function saveAccount(updatedAcc, cb){
+  if(!updatedAcc || !updatedAcc.account){
+    cb && cb(new Error('saveAccount: missing account (keyPath)'));
+    return;
+  }
+  // 建议统一更新时间（可选）
+  updatedAcc.updated_at = new Date().toISOString();
+  putObj(STORE_ACC, updatedAcc, cb);
+}
 
   function clearStore(store, cb){
     tx(store,'readwrite', function(err, os, t){
