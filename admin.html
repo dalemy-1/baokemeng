@@ -321,6 +321,17 @@
   </div>
 
 <script>
+
+window.setStatus = function(msg){
+  msg = String(msg||'');
+  try{
+    var el = document.getElementById('syncStatus');
+    if(el) el.textContent = msg;
+  }catch(e){}
+  try{ console.log('[SYNC]', msg); }catch(e){}
+};
+
+
   // --- Safety shims (avoid blank page if any function missing) ---
   if (typeof window.getWinCountByAccount !== 'function') {
     window.getWinCountByAccount = function(acc){
@@ -1631,22 +1642,7 @@ $('actSearch').value = '';
 
   function q(id){ return document.getElementById(id); }
 
-  
-
-// ===== Cloud Sync Status Helper (global) =====
-window.setStatus = function(msg){
-  msg = String(msg||'');
-  try{
-    var el = document.getElementById('syncStatus');
-    if(el) el.textContent = msg;
-  }catch(e){}
-  try{
-    if(typeof toast === 'function' && msg) toast(msg);
-  }catch(e){}
-  try{ console.log('[SYNC]', msg); }catch(e){}
-};
-
-function normalizeBase(input){
+  function normalizeBase(input){
     // Accept either:
     // 1) https://xxx.vercel.app
     // 2) https://xxx.vercel.app/api/sync/pull?v=xxx
@@ -1679,7 +1675,8 @@ function normalizeBase(input){
   function getSyncCfg(){
     var base = normalizeBase(q('syncBaseUrl').value);
     var token = sanitizeToken(q('syncAdminToken').value);
-    if(!base) throw new Error('请填写同步 API Base URL（示例：https://xxx.vercel.app）');
+    // ✅ 允许 base 为空：同域请求 /api/sync/*
+    if(!base) base = '';
     if(!token) throw new Error('请填写管理员同步口令（x-admin-token）');
     return { baseUrl: base, token: token };
   }
@@ -1735,10 +1732,12 @@ function normalizeBase(input){
     try{
       if(!confirm('将用云端数据覆盖本地 IndexedDB（本地更改会被覆盖）。继续？')) return;
       setStatus('拉取中…');
+    // (v21) 拉取卡死保护：后续会输出完成/失败日志
+
       var j = await apiFetch('/api/sync/pull', { method:'POST', body:'{}', headers:{'Content-Type':'application/json'} });
 
       await new Promise(function(resolve, reject){
-        applyCloudToLocal(j, function(err, stats){
+        window.applyCloudToLocal(j, function(err, stats){
           if(err) return reject(err);
           resolve(stats);
         });
@@ -1801,15 +1800,55 @@ function normalizeBase(input){
 })();
 </script>
 <script>
-function applyCloudToLocal(cloud){
-    // ✅ 快速落地：先把云端数据缓存到 localStorage，避免 IndexedDB 写入导致卡死
-    // 你确认链路跑通后，我们再把这里升级为写回 IndexedDB 的正式实现
+(function(){
+  function $(id){ return document.getElementById(id); }
+  function onReady(fn){
+    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', fn);
+    else fn();
+  }
+  onReady(function(){
+    // Persist keys
+    var K_TOKEN = 'OPS_SYNC_ADMIN_TOKEN_V1';
+    var K_BASE  = 'OPS_SYNC_BASEURL_V1';
+
+    var tokenEl = $('syncAdminToken');
+    var baseEl  = $('syncBaseUrl');
+
+    // Load saved values
+    try{
+      var savedToken = localStorage.getItem(K_TOKEN) || '';
+      if(tokenEl && savedToken) tokenEl.value = savedToken;
+    }catch(e){}
+    try{
+      var savedBase = localStorage.getItem(K_BASE);
+      if(baseEl && savedBase !== null) baseEl.value = savedBase; // allow empty
+    }catch(e){}
+
+    // Save on input (so refresh won't lose)
+    if(tokenEl){
+      tokenEl.addEventListener('input', function(){
+        try{ localStorage.setItem(K_TOKEN, tokenEl.value || ''); }catch(e){}
+      });
+    }
+    if(baseEl){
+      baseEl.addEventListener('input', function(){
+        try{ localStorage.setItem(K_BASE, baseEl.value || ''); }catch(e){}
+      });
+    }
+  });
+})();
+</script>
+<script>
+(function(){
+  // ✅ 覆盖为“快速落地版”：避免 IndexedDB 写入导致拉取卡死
+  async function window.applyCloudToLocal(cloud){
     try{
       localStorage.setItem('OPS_LAST_CLOUD_PULL_V1', JSON.stringify(cloud||{}));
     }catch(e){}
-    return Promise.resolve(true);
+    return true;
   }
-
+  window.applyCloudToLocal = applyCloudToLocal;
+})();
 </script>
 </body>
 </html>
