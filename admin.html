@@ -1679,7 +1679,7 @@ function normalizeBase(input){
   function getSyncCfg(){
     var base = normalizeBase(q('syncBaseUrl').value);
     var token = sanitizeToken(q('syncAdminToken').value);
-    if(!base) base = ''; // 同域
+    if(!base) throw new Error('请填写同步 API Base URL（示例：https://xxx.vercel.app）');
     if(!token) throw new Error('请填写管理员同步口令（x-admin-token）');
     return { baseUrl: base, token: token };
   }
@@ -1801,48 +1801,15 @@ function normalizeBase(input){
 })();
 </script>
 <script>
-  // ===== v21 Sync Client Glue (global expose + minimal impl) =====
-  // 说明：如果页面原本已实现 applyCloudToLocal/dumpLocalSnapshot，则只做 window 暴露；
-  // 若未实现，则提供最小实现，保证拉取/推送按钮可用。
-  (function(){
-    function safe(fnName, fn){
-      try{ if(typeof fn === 'function') window[fnName] = fn; }catch(e){}
-    }
+function applyCloudToLocal(cloud){
+    // ✅ 快速落地：先把云端数据缓存到 localStorage，避免 IndexedDB 写入导致卡死
+    // 你确认链路跑通后，我们再把这里升级为写回 IndexedDB 的正式实现
+    try{
+      localStorage.setItem('OPS_LAST_CLOUD_PULL_V1', JSON.stringify(cloud||{}));
+    }catch(e){}
+    return Promise.resolve(true);
+  }
 
-    // Minimal local snapshot: read localStorage blobs (if your app uses IndexedDB, keep your own implementation)
-    async function dumpLocalSnapshot(){
-      // 这里做“最小可用”：只推送你现有 localStorage 的账号/活动/entries（如果你本地用 IndexedDB，可后续再升级）
-      // 兼容：若你原代码已有更完整实现，此函数会被覆盖掉（我们优先使用原实现）
-      const empty = { accounts: [], activities: [], entries: [] };
-      try{
-        const s = localStorage.getItem('OPS_LOCAL_SNAPSHOT_V1');
-        if(s){
-          const obj = JSON.parse(s);
-          return obj && typeof obj === 'object' ? obj : empty;
-        }
-      }catch(e){}
-      return empty;
-    }
-
-    async function applyCloudToLocal(cloud){
-      // 最小可用：把云端拉回的数据暂存到 localStorage，方便你确认链路通
-      try{
-        localStorage.setItem('OPS_LAST_CLOUD_PULL_V1', JSON.stringify(cloud || {}));
-      }catch(e){}
-    }
-
-    // If existing implementations exist in current scope, expose them.
-    safe('dumpLocalSnapshot', (typeof window.dumpLocalSnapshot === 'function') ? window.dumpLocalSnapshot : (typeof dumpLocalSnapshot === 'function' ? dumpLocalSnapshot : null));
-    safe('applyCloudToLocal', (typeof window.applyCloudToLocal === 'function') ? window.applyCloudToLocal : (typeof applyCloudToLocal === 'function' ? applyCloudToLocal : null));
-
-    // Otherwise register minimal implementations
-    if(typeof window.dumpLocalSnapshot !== 'function') window.dumpLocalSnapshot = dumpLocalSnapshot;
-    if(typeof window.applyCloudToLocal !== 'function') window.applyCloudToLocal = applyCloudToLocal;
-
-    // Ensure status exists
-    if(typeof window.setStatus !== 'function') window.setStatus = function(m){ try{ console.log('[SYNC]', m);}catch(e){} };
-
-  })();
 </script>
 </body>
 </html>
