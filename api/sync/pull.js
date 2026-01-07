@@ -1,10 +1,11 @@
 import { applyCors, requireAdminToken, supabaseAdmin, readJson, nowIso, sendJson, handleError } from "./_util.js";
 
 /**
- * V24.2 STABLE: pull returns { data, deletes } without relying on deleted_at / updated_at columns.
- * - Main tables: select("*") only (no filters)
- * - Deletes queue: ops_deletes(table_name,row_id,deleted_at,source)
- * - Supports optional since (ISO) ONLY for deletes by deleted_at; main tables still full.
+ * V24.3 STABLE FIX:
+ * - supabaseAdmin() is async in this repo, so we MUST await it. (Fixes "sb.from is not a function")
+ * - main tables: select("*") only (schema-agnostic)
+ * - deletes queue: ops_deletes(table_name,row_id,deleted_at,source)
+ * - since applies only to deletes by deleted_at (optional)
  */
 
 const TABLE_MAP = {
@@ -37,11 +38,13 @@ export default async function handler(req, res) {
     const auth = requireAdminToken(req);
     if (!auth.ok) return sendJson(res, 401, { ok: false, error: auth.error });
 
-    const sb = supabaseAdmin();
     const body = await readJson(req);
     const since = parseSince(req, body);
 
-    // 1) Main data: always full (stable, schema-agnostic)
+    // IMPORTANT: supabaseAdmin is async in this project.
+    const sb = await supabaseAdmin();
+
+    // 1) Main data (full)
     const data = {};
     for (const [key, table] of Object.entries(TABLE_MAP)) {
       const r = await fetchAll(sb, table);
@@ -57,7 +60,7 @@ export default async function handler(req, res) {
       data[key] = r.data;
     }
 
-    // 2) Deletes: since applies ONLY here (by deleted_at)
+    // 2) Deletes queue (since applies here only)
     let dq = sb.from(DELETES_TABLE).select("table_name,row_id,deleted_at,source").limit(LIMIT_DELETES);
     if (since) dq = dq.gt("deleted_at", since);
     const { data: deletes, error: dErr } = await dq;
@@ -77,7 +80,7 @@ export default async function handler(req, res) {
       since: since || null,
       data,
       deletes: deletes || [],
-      note: "pull ok (v24.2 stable: no deleted_at/updated_at dependency)",
+      note: "pull ok (v24.3 stable: await supabaseAdmin + deletes queue)",
     });
   } catch (err) {
     return handleError(res, err);
