@@ -74,8 +74,6 @@
     .field .lbl{font-size:12px;color:var(--muted);margin-bottom:6px}
     .field .val{min-height:22px;white-space:pre-wrap;word-break:break-word}
     .field .val.edit{outline:none;border-radius:8px;padding:6px 8px;border:1px dashed rgba(59,130,246,.35);background:rgba(59,130,246,.06)}
-.field .val.ro{border-radius:8px;padding:6px 8px;border:1px solid var(--line);background:#f8fafc;color:var(--ink);opacity:.9;}
-
 
     .k{padding-top:8px;color:var(--muted);font-size:12px}
     .v{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff;cursor:pointer;word-break:break-all}
@@ -716,11 +714,7 @@ function getAll(store, cb){
       html += '<div class="field">';
       html +=   '<div class="lbl">'+escHtml(key)+'</div>';
       if(accEditing){
-        if(k==="account"){
-        html += '<div class="val ro" data-k="account">'+escHtml(v)+'</div>';
-      }else{
         html += '<div class="val edit" contenteditable="true" data-k="'+escAttr(k)+'">'+escHtml(v)+'</div>';
-      }
       }else{
         html += '<div class="val" data-copy="'+escAttr(v)+'">'+(v?escHtml(v):'<span class="muted">—</span>')+'</div>';
       }
@@ -728,13 +722,6 @@ function getAll(store, cb){
     }
     html += '</div>';
     accModalBody.innerHTML = html;
-
-    // 按编辑状态切换按钮（编辑/保存/取消）
-    try{
-      $('btnAccEdit') && $('btnAccEdit').classList.toggle('hidden', !!accEditing);
-      $('btnAccSave') && $('btnAccSave').classList.toggle('hidden', !accEditing);
-      $('btnAccCancel') && $('btnAccCancel').classList.toggle('hidden', !accEditing);
-    }catch(e){}
 
     if(!accEditing){
       var vs = accModalBody.querySelectorAll('.val');
@@ -1995,5 +1982,72 @@ $('actSearch').value = '';
 </script>
 <script src="./syncclient_v22_addon_act_acc_v199_v2.js?v=2"></script>
 <script src="./syncclient_v24_addon_deletes_act_acc_v199.js?v=1"></script>
+
+<script>
+/* v26.3 patch: 账号详情“编辑/保存”一键切换 + 强制绑定保存（防止只改UI不落库） */
+(function(){
+  try{
+    var $ = window.$ || function(id){ return document.getElementById(id); };
+    var btnEdit = $('btnAccEdit');
+    var btnSave = $('btnAccSave');
+    var btnCancel = $('btnAccCancel');
+    if(!btnEdit) return;
+
+    function showSaveCancel(on){
+      if(btnSave) btnSave.style.display = on ? '' : 'none';
+      if(btnCancel) btnCancel.style.display = on ? '' : 'none';
+    }
+    function setEditMode(on){
+      // 复用原逻辑（如果存在）
+      if(typeof window.toggleReadonly === 'function') window.toggleReadonly(!on);
+      if(typeof window.toggleReadonly === 'function' && typeof window.toggleReadonly !== 'function') {}
+      // 兼容原变量
+      try{ window.editMode = !!on; }catch(e){}
+      // 按钮文案：用一个按钮完成“编辑/保存”
+      btnEdit.textContent = on ? '保存' : '编辑';
+      btnEdit.dataset.mode = on ? 'save' : 'edit';
+      showSaveCancel(on);
+    }
+
+    // 初始：如果原代码隐藏了 Save/Cancel，则保持隐藏
+    showSaveCancel(false);
+
+    btnEdit.onclick = async function(){
+      var mode = btnEdit.dataset.mode || (btnEdit.textContent.indexOf('保存')>=0 ? 'save' : 'edit');
+      if(mode === 'edit'){
+        if(typeof window.startEdit === 'function') window.startEdit();
+        setEditMode(true);
+        return;
+      }
+      // save
+      if(typeof window.saveEdit === 'function'){
+        await window.saveEdit();
+        // saveEdit 内部一般会 set editMode=false + toggleReadonly(true)；这里再兜底一次
+        setEditMode(false);
+      }else{
+        alert('保存功能缺失：未找到 saveEdit()');
+      }
+    };
+
+    if(btnSave){
+      btnSave.onclick = async function(){
+        if(typeof window.saveEdit === 'function'){ await window.saveEdit(); }
+        setEditMode(false);
+      };
+    }
+    if(btnCancel){
+      btnCancel.onclick = function(){
+        if(typeof window.cancelEdit === 'function') window.cancelEdit();
+        setEditMode(false);
+      };
+    }
+
+    // 如果原代码已在打开弹窗时设置 readonly，这里不改变，只增强按钮行为
+  }catch(e){
+    console.error('[patch-acc-save] failed', e);
+  }
+})();
+</script>
+
 </body>
 </html>
