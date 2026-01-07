@@ -1,126 +1,48 @@
 // api/sync/push.js
-// V25.1（永久稳态版）：Push 端“自适应剔除未知列”，不再依赖 information_schema（避免 500 / schema cache missing column）
-//
-// 关键点：
-// 1) 客户端可能带本地新增字段（addr_city / aux_email / birth_ym 等），云端表未必有。
-// 2) PostgREST/Supabase 会因为“未知列”直接 500：Could not find the '<col>' column of '<table>' in the schema cache
-// 3) 本实现：遇到未知列报错 -> 解析出列名 -> 从 payload 全量剔除该列 -> 自动重试（最多 20 次）
-//    => 无论客户端带多少新字段，都不会把 push 打崩。
-
+// V25 (稳态增强)：Push 端“按云端真实列过滤”——本地多字段不会再导致 500
+// 适配：Vercel Serverless Functions 目录结构（/api/sync/push.js）
+// 依赖：SUPABASE_SERVICE_ROLE_KEY + NEXT_PUBLIC_SUPABASE_URL + ADMIN_SYNC_TOKEN
 import { createClient } from "@supabase/supabase-js";
 
-function getEnv(name, fallback = "") {
-  return process.env[name] || fallback;
-}
-
 function supabaseAdmin() {
-  const url = getEnv("NEXT_PUBLIC_SUPABASE_URL");
-  const service = getEnv("SUPABASE_SERVICE_ROLE_KEY") || getEnv("SUPABASE_SERVICE_ROLE_KEY".toUpperCase()); // 兼容
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const service = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
   if (!url || !service) throw new Error("Supabase env missing");
   return createClient(url, service, { auth: { persistSession: false } });
 }
 
-function json(res, status, obj) {
-  res.statusCode = status;
-  res.setHeader("content-type", "application/json; charset=utf-8");
-  res.end(JSON.stringify(obj));
-}
-
-function requireAdmin(req) {
-  const headerToken = (req.headers["x-admin-token"] || "").toString();
-  const bodyToken = (req.body && req.body.admin_token) ? String(req.body.admin_token) : "";
-  const token = headerToken || bodyToken;
-
-  const expected =
-    getEnv("ADMIN_SYNC_TOKEN") ||
-    getEnv("ADMIN_TOKEN") ||
-    getEnv("ADMIN_SYNC_SECRET") ||
-    ""; // 你当前项目里用 ADMIN_SYNC_TOKEN
-
-  if (!expected) return { ok: false, error: "server_admin_token_missing" };
-  if (!token || token !== expected) return { ok: false, error: "unauthorized" };
-  return { ok: true };
-}
-
-function parseMissingColumn(message) {
-  // 典型：Could not find the 'addr_city' column of 'ops_accounts' in the schema cache
-  const m = String(message || "").match(/Could not find the '([^']+)' column of '([^']+)'/i);
-  if (m) return { column: m[1], table: m[2] };
-  return null;
-}
-
-function stripColumnFromRows(rows, col) {
-  if (!Array.isArray(rows)) return rows;
-  let changed = 0;
-  const out = rows.map((r) => {
-    if (!r || typeof r !== "object") return r;
-    if (Object.prototype.hasOwnProperty.call(r, col)) {
-      const copy = { ...r };
-      delete copy[col];
-      changed += 1;
-      return copy;
-    }
-    return r;
-  });
-  return { rows: out, changed };
-}
-
-async function upsertWithAdaptiveStrip(sb, table, rows, opts = {}) {
-  const chunkSize = opts.chunkSize || 500;
-  const maxRetries = opts.maxRetries || 20;
-
-  let working = Array.isArray(rows) ? rows : [];
-  let stripped = [];
-  let attempts = 0;
-
-  // 先做一次“轻清洗”：确保 id 存在且是字符串（避免 keyPath/类型问题）
-  working = working
-    .filter((r) => r && typeof r === "object")
-    .map((r) => {
-      const out = { ...r };
-      if (out.id != null) out.id = String(out.id);
-      return out;
-    });
-
-  while (attempts <= maxRetries) {
-    attempts += 1;
-
-    try {
-      let total = 0;
-      for (let i = 0; i < working.length; i += chunkSize) {
-        const batch = working.slice(i, i + chunkSize);
-        if (!batch.length) continue;
-
-        const { error } = await sb.from(table).upsert(batch, { onConflict: "id" });
-        if (error) throw error;
-        total += batch.length;
-      }
-
-      return { ok: true, table, upserted: working.length, stripped, attempts };
-
-    } catch (e) {
-      const info = parseMissingColumn(e?.message || e);
-      if (!info || info.table !== table) {
-        return { ok: false, table, error: "supabase_error", message: String(e?.message || e), stripped, attempts };
-      }
-
-      // 剔除该列并重试
-      const col = info.column;
-      const res = stripColumnFromRows(working, col);
-      working = res.rows;
-      stripped.push({ column: col, removed_from_rows: res.changed });
-
-      // 如果一轮下来没有任何行包含该列，避免死循环：直接返回报错
-      if (res.changed === 0) {
-        return { ok: false, table, error: "schema_mismatch_unresolved", message: String(e?.message || e), stripped, attempts };
-      }
-    }
+function pick(obj, allowedSet) {
+  if (!obj || typeof obj !== "object") return null;
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (allowedSet.has(k)) out[k] = v;
   }
+  return out;
+}
 
-  return { ok: false, table, error: "too_many_retries", stripped, attempts };
+
+// === 不再读取 information_schema（Supabase REST 默认不可读，会导致 500）===
+// 服务器端按白名单过滤字段：避免本地多字段/旧字段导致“列不存在”从而 500。
+// 说明：如果你未来新增字段，需同时：1) Supabase 表加列；2) 把字段加入白名单（可选）。
+const ACCOUNT_ALLOWED = new Set([
+  "account","activity_name","won","paid","applied","apply_title","tags","status",
+  "pwd","aux_email","aux_pwd","phone","zip","addr_city","addr_line","name_cn","name_jp",
+  "card_name","card_num","exp","cvv","dob","birth_ym","note1","note2","note3","note4","updated_at"
+]);
+
+const ACT_ALLOWED = new Set([
+  "id","name","status","start_at","end_at","note","created_at","updated_at"
+]);
+
+function getAllowedColumnsLocal(table){
+  if (table === "ops_accounts") return ACCOUNT_ALLOWED;
+  if (table === "ops_activities") return ACT_ALLOWED;
+  // 默认：仅允许 id（防止误写导致 500）
+  return new Set(["id"]);
 }
 
 function normalizeDeletes(deletes) {
+
   const arr = Array.isArray(deletes) ? deletes : [];
   return arr
     .map((d) => ({
@@ -134,70 +56,115 @@ function normalizeDeletes(deletes) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") return json(res, 405, { ok: false, error: "method_not_allowed" });
-
-  // 让 Vercel 先把 body 解析好（如果你没用 bodyParser，这里也能跑；你的项目目前可用）
-  const body = req.body || {};
-  const auth = requireAdmin(req);
-  if (!auth.ok) return json(res, 401, { ok: false, error: auth.error });
-
   try {
+    if (req.method !== "POST") {
+      return res.status(405).json({ ok: false, error: "method_not_allowed" });
+    }
+
+    // --- Auth (Admin token) ---
+    const expected = process.env.ADMIN_SYNC_TOKEN || "";
+    const token =
+      (req.headers["x-admin-token"] || req.headers["x-admin-sync-token"] || "").toString() ||
+      (req.body?.admin_token || "").toString();
+
+    if (!expected || token !== expected) {
+      return res.status(401).json({ ok: false, error: "unauthorized" });
+    }
+
     const sb = supabaseAdmin();
 
-    const db = String(body.db || "");
-    const data = body.data || {};
-    const source = String(body.source || body.device_id || "").slice(0, 128) || null;
+    // --- Parse payload ---
+    // 兼容多种客户端 payload 形态：{ db, data: { accounts, activities, entries }, deletes, source }
+    const payload = req.body || {};
+    const dbName = String(payload.db || payload.db_name || "").slice(0, 128);
+    const source = String(payload.source || payload.device_id || "").slice(0, 128);
 
-    const accounts = Array.isArray(data.accounts) ? data.accounts : [];
-    const activities = Array.isArray(data.activities) ? data.activities : [];
-    const entries = Array.isArray(data.entries) ? data.entries : [];
+    const dataObj = payload.data || payload.snapshot || payload.state || {};
+    const accounts = Array.isArray(dataObj.accounts) ? dataObj.accounts : (dataObj.accounts?.rows || []);
+    const activities = Array.isArray(dataObj.activities) ? dataObj.activities : (dataObj.activities?.rows || []);
+    const entries = Array.isArray(dataObj.entries) ? dataObj.entries : (dataObj.entries?.rows || []);
 
-    // 1) 主表 upsert（自适应剔除未知列）
-    const r1 = await upsertWithAdaptiveStrip(sb, "ops_accounts", accounts);
-    if (!r1.ok) return json(res, 500, { ok: false, error: r1.error, where: "ops_accounts", message: r1.message, debug: r1 });
+    // --- Table mapping ---
+    const TABLES = {
+      accounts: "ops_accounts",
+      activities: "ops_activities",
+      entries: "ops_entries",
+    };
 
-    const r2 = await upsertWithAdaptiveStrip(sb, "ops_activities", activities);
-    if (!r2.ok) return json(res, 500, { ok: false, error: r2.error, where: "ops_activities", message: r2.message, debug: r2 });
+    // --- Column allowlists (云端真实列) ---
+    const allowAccounts = await getAllowedColumns(sb, TABLES.accounts);
+    const allowActivities = await getAllowedColumns(sb, TABLES.activities);
+    const allowEntries = await getAllowedColumns(sb, TABLES.entries);
 
-    // entries 可选：你目前 entries 为空/不做也行
-    let r3 = { ok: true, table: "ops_entries", upserted: 0, stripped: [], attempts: 0 };
-    if (entries.length) {
-      r3 = await upsertWithAdaptiveStrip(sb, "ops_entries", entries);
-      if (!r3.ok) return json(res, 500, { ok: false, error: r3.error, where: "ops_entries", message: r3.message, debug: r3 });
+    // --- Filter rows ---
+    const filteredAccounts = (accounts || [])
+      .map((r) => pick(r, allowAccounts))
+      .filter((r) => r && r.id);
+    const filteredActivities = (activities || [])
+      .map((r) => pick(r, allowActivities))
+      .filter((r) => r && r.id);
+    const filteredEntries = (entries || [])
+      .map((r) => pick(r, allowEntries))
+      .filter((r) => r && r.id);
+
+    // --- Upsert helpers ---
+    async function safeUpsert(table, rows, tag) {
+      if (!rows || rows.length === 0) return { upserted: 0 };
+      const BATCH = 500;
+      let upserted = 0;
+      for (let i = 0; i < rows.length; i += BATCH) {
+        const chunk = rows.slice(i, i + BATCH);
+        const { error } = await sb.from(table).upsert(chunk, { onConflict: "id" });
+        if (error) throw new Error(`${tag} upsert failed: ${error.message || String(error)}`);
+        upserted += chunk.length;
+      }
+      return { upserted };
     }
 
-    // 2) deletes 队列写入（幂等）
-    const deletes = normalizeDeletes(body.deletes);
-    let deletesInserted = 0;
-    if (deletes.length) {
-      const rows = deletes.map((d) => ({
+    // --- Deletes queue (tombstone) ---
+    const deletes = normalizeDeletes(payload.deletes || dataObj.deletes);
+    let deletes_written = 0;
+    if (deletes.length > 0) {
+      const nowIso = new Date().toISOString();
+      const toWrite = deletes.map((d) => ({
         table_name: d.table_name,
         row_id: d.row_id,
-        deleted_at: d.deleted_at || new Date().toISOString(),
-        source: d.source || source,
+        deleted_at: d.deleted_at || nowIso,
+        source: d.source || source || "client",
       }));
-      const { error } = await sb.from("ops_deletes").upsert(rows, { onConflict: "table_name,row_id" });
-      if (error) return json(res, 500, { ok: false, error: "supabase_error", where: "ops_deletes", message: error.message });
-      deletesInserted = rows.length;
+
+      const { error } = await sb.from("ops_deletes").upsert(toWrite, {
+        onConflict: "table_name,row_id",
+      });
+      if (error) throw new Error(`deletes upsert failed: ${error.message || String(error)}`);
+      deletes_written = toWrite.length;
     }
 
-    return json(res, 200, {
+    // --- Main upserts ---
+    const r1 = await safeUpsert(TABLES.accounts, filteredAccounts, "accounts");
+    const r2 = await safeUpsert(TABLES.activities, filteredActivities, "activities");
+    const r3 = await safeUpsert(TABLES.entries, filteredEntries, "entries");
+
+    return res.json({
       ok: true,
-      db,
-      upsert: {
-        accounts: r1.upserted,
-        activities: r2.upserted,
-        entries: r3.upserted,
+      db: dbName || null,
+      source: source || null,
+      counts: {
+        accounts_in: accounts?.length || 0,
+        activities_in: activities?.length || 0,
+        entries_in: entries?.length || 0,
+        accounts_upserted: r1.upserted,
+        activities_upserted: r2.upserted,
+        entries_upserted: r3.upserted,
+        deletes_written,
       },
-      stripped: {
-        ops_accounts: r1.stripped,
-        ops_activities: r2.stripped,
-        ops_entries: r3.stripped,
-      },
-      deletesInserted,
-      note: "push ok (adaptive strip unknown columns; no information_schema)",
+      note: "push ok (filtered by server schema)",
     });
   } catch (e) {
-    return json(res, 500, { ok: false, error: "server_error", message: String(e?.message || e) });
+    return res.status(500).json({
+      ok: false,
+      error: "supabase_error",
+      message: e?.message || String(e),
+    });
   }
 }
