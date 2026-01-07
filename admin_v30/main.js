@@ -6,6 +6,7 @@ const $ = (id)=>document.getElementById(id);
 
 let db;
 let accounts = [];
+let filtered = [];
 let activities = [];
 let currentOriginal = null;
 let currentDraft = null;
@@ -96,7 +97,7 @@ function renderTable(){
     });
   });
 
-  $('listInfo').textContent = `(显示 ${rows.length} / ${allAccounts.length})`;
+  $('listInfo').textContent = `(显示 ${rows.length} / ${accounts.length})`;
 }
 
 function renderForm(acc, mode='view'){
@@ -322,6 +323,34 @@ function downloadText(filename, text, mime='text/plain;charset=utf-8'){
   setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0);
 }
 
+
+function extractAccountsFromText(text){
+  const out = new Set();
+  const raw = String(text||'');
+  const parts = raw.split(/[\s,;]+/).map(s=>s.trim()).filter(Boolean);
+  for(const p of parts){
+    const m = p.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+    if(m) out.add(m[0].toLowerCase());
+    else out.add(p.toLowerCase());
+  }
+  return Array.from(out);
+}
+
+function syncSelectionCheckboxes(){
+  document.querySelectorAll('input[data-sel]').forEach(chk=>{
+    const tr = chk.closest('tr');
+    if(!tr) return;
+    const link = tr.querySelector('a[data-account]');
+    const acc = link ? link.getAttribute('data-account') : null;
+    if(!acc) return;
+    chk.checked = selectedAccounts.has(acc);
+  });
+  const chkAll = $('chkAll');
+  if(chkAll){
+    chkAll.checked = filtered.length>0 && filtered.every(a=>selectedAccounts.has(a.account));
+  }
+}
+
 let selectedAccounts = new Set();
 
 function getSelectedList(){ return Array.from(selectedAccounts); }
@@ -340,7 +369,7 @@ function applyFilters(){
   const fWin = $('fWin')?.value || '';
   const fPaid = $('fPaid')?.value || '';
 
-  filtered = allAccounts.filter(a=>{
+  filtered = accounts.filter(a=>{
     const hay = [a.account,a.tags,a.status,a.apply_activity,a.phone,a.aux_email].map(x=>String(x||'').toLowerCase()).join(' ');
     if(q && !hay.includes(q)) return false;
     if(fTag && !String(a.tags||'').toLowerCase().includes(fTag)) return false;
@@ -425,7 +454,7 @@ async function batchUpdate(mutator){
   const now = new Date().toISOString();
   let changed = 0;
   for(const accId of list){
-    const a = allAccounts.find(x=>x.account===accId);
+    const a = accounts.find(x=>x.account===accId);
     if(!a) continue;
     const next = {...a};
     mutator(next);
@@ -447,6 +476,30 @@ $('btnBatchApply').addEventListener('click', async ()=>{
 $('btnBatchWin').addEventListener('click', async ()=>{ await batchUpdate((a)=>{ a.win = 'yes'; }); });
 $('btnBatchPaid').addEventListener('click', async ()=>{ await batchUpdate((a)=>{ a.paid = 'yes'; }); });
 $('btnBatchClear').addEventListener('click', async ()=>{ await batchUpdate((a)=>{ a.win=''; a.paid=''; }); });
+
+
+$('btnParseSelect').addEventListener('click', ()=>{
+  const text = $('parseInput').value || '';
+  const tokens = extractAccountsFromText(text);
+  if(tokens.length===0) return alert('没有可解析的账号/邮箱。');
+  const map = new Map();
+  for(const a of accounts) map.set(String(a.account||'').toLowerCase(), a);
+  let hit = 0;
+  for(const t of tokens){
+    if(map.has(t)){
+      selectedAccounts.add(t);
+      hit++;
+    }
+  }
+  if(hit===0){
+    alert('未匹配到账号库中的 account。请确认粘贴的是“账户”列（邮箱）。');
+  }else{
+    syncSelectionCheckboxes();
+    alert(`已匹配并勾选：${hit} 个账号（共解析 ${tokens.length} 个 token）。`);
+  }
+});
+
+$('btnParseClear').addEventListener('click', ()=>{ $('parseInput').value=''; });
 
 $('btnExportCsv').addEventListener('click', ()=>{
   const rows = filtered.map(a=>({...a, win:normYesNo(a.win), paid:normYesNo(a.paid)}));

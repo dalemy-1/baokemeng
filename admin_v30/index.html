@@ -61,6 +61,10 @@
     .btnGhost:hover{ border-style:solid; }
     table td.sel{ width:40px; }
 
+  
+    .parsebox{ margin-top:12px; padding:12px; border:1px solid var(--line); border-radius:14px; background:#fbfcff; }
+    .parseactions{ display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
+
   </style>
 </head>
 <body>
@@ -115,7 +119,19 @@
           <button id="btnClearFilters" class="btn btnGhost">清空筛选</button>
         </div>
 
-        <div class="batchbar">
+        
+        <div class="parsebox">
+          <textarea id="parseInput" class="input" rows="3" style="width:100%;max-width:760px" placeholder="粘贴账号/邮箱（每行一个，或用空格/逗号分隔）。示例：
+001@dalemy.top
+002@dalemy.top"></textarea>
+          <div class="parseactions">
+            <button id="btnParseSelect" class="btn">解析并勾选</button>
+            <button id="btnParseClear" class="btn btnGhost">清空输入</button>
+          </div>
+          <div class="note" style="margin-top:6px">解析规则：自动提取邮箱样式文本；匹配到账号库中的 account 即勾选。可配合批量报名/中签/已付款使用。</div>
+        </div>
+
+<div class="batchbar">
           <label class="chk"><input id="chkAll" type="checkbox"/> 全选（当前筛选结果）</label>
           <button id="btnBatchApply" class="btn">批量报名</button>
           <button id="btnBatchWin" class="btn">批量标记中签</button>
