@@ -53,12 +53,20 @@
     .roval{ white-space:pre-wrap; word-break:break-word; }
     .roempty{ color:var(--muted); }
 
+  
+    .filters{ display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; align-items:center; }
+    .batchbar{ display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; align-items:center; }
+    .chk{ display:inline-flex; align-items:center; gap:8px; color:var(--muted); font-size:14px; }
+    .btnGhost{ background:#fff; border:1px dashed var(--line); color:var(--muted); }
+    .btnGhost:hover{ border-style:solid; }
+    table td.sel{ width:40px; }
+
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="top">
-      <div class="title">admin_v30 最小可用性重构 <span class="badge">账号：可点 → 可编辑 → 可保存 → 刷新仍在</span></div>
+      <div class="title">admin_v31 账号库（扩展字段/报名/批量标记） <span class="badge">账号：可点 → 可编辑 → 可保存 → 刷新仍在</span></div>
       <div class="muted">IndexedDB 读取：<b>act_acc_v199</b> / store: <b>accounts</b></div>
     </div>
 
@@ -87,9 +95,35 @@
           <button id="btnReload" class="btn">重新加载</button>
           <button id="btnImportJson" class="btn">导入JSON（账号）</button>
           <button id="btnAddTest" class="btn">新增测试账号</button>
-          <button id="btnExportJson" class="btn">导出JSON（仅账号）</button>
+          <button id="btnExportJson" class="btn">导出JSON（筛选后）</button>
           <input id="fileJson" type="file" accept="application/json" style="display:none" />
+        
+        <div class="filters">
+          <input id="fActivity" class="input" style="max-width:240px" placeholder="活动报名（筛选/批量设置）"/>
+          <select id="fWin" class="input" style="max-width:140px">
+            <option value="">中签：全部</option>
+            <option value="yes">中签</option>
+            <option value="no">未中签</option>
+          </select>
+          <select id="fPaid" class="input" style="max-width:140px">
+            <option value="">付款：全部</option>
+            <option value="yes">已付款</option>
+            <option value="no">未付款</option>
+          </select>
+          <input id="fTag" class="input" style="max-width:200px" placeholder="标签包含…"/>
+          <button id="btnApplyFilters" class="btn">应用筛选</button>
+          <button id="btnClearFilters" class="btn btnGhost">清空筛选</button>
         </div>
+
+        <div class="batchbar">
+          <label class="chk"><input id="chkAll" type="checkbox"/> 全选（当前筛选结果）</label>
+          <button id="btnBatchApply" class="btn">批量报名</button>
+          <button id="btnBatchWin" class="btn">批量标记中签</button>
+          <button id="btnBatchPaid" class="btn">批量标记已付款</button>
+          <button id="btnBatchClear" class="btn btnGhost">批量清除标记</button>
+          <button id="btnExportCsv" class="btn">导出CSV（筛选后）</button>
+        </div>
+</div>
         <div class="note">导出用于“先验证本地可写入”，后续再接同步与云端。</div>
       </div>
     </div>
@@ -102,13 +136,17 @@
       <div style="max-height:65vh; overflow:auto;">
         <table>
           <thead>
-            <tr>
-              <th style="width:260px;">账号</th>
-              <th style="width:220px;">标签</th>
-              <th style="width:160px;">状态</th>
-              <th>更新时间</th>
-            </tr>
-          </thead>
+          <tr>
+            <th></th>
+            <th>账户</th>
+            <th>标签</th>
+            <th>活动报名</th>
+            <th>中签</th>
+            <th>已付款</th>
+            <th>状态</th>
+            <th>更新时间</th>
+          </tr>
+        </thead>
           <tbody id="tbody">
             <tr><td colspan="4" class="muted">加载中…</td></tr>
           </tbody>
